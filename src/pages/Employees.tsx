@@ -107,6 +107,21 @@ export default function Employees() {
     input.click();
   };
 
+  const handleEditEmployee = (employeeId: string) => {
+    toast({
+      title: "Edit Employee",
+      description: `Opening edit form for employee ${employeeId}`,
+    });
+  };
+
+  const handleDeleteEmployee = (employeeId: string, employeeName: string) => {
+    toast({
+      title: "Delete Employee",
+      description: `Are you sure you want to delete ${employeeName}? This action cannot be undone.`,
+      variant: "destructive",
+    });
+  };
+
   const handleAddEmployee = () => {
     toast({
       title: "Add Employee",
@@ -241,10 +256,10 @@ export default function Employees() {
                         {employee.status}
                       </Badge>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => handleEditEmployee(employee.id)}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => handleDeleteEmployee(employee.id, employee.name)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -295,16 +310,16 @@ export default function Employees() {
                         <span className="text-sm text-business-warning">₹{employee.advance}</span>
                       </div>
                     )}
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                   </div>
+                   <div className="flex gap-2 pt-2">
+                     <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEditEmployee(employee.id)}>
+                       <Edit className="h-4 w-4 mr-1" />
+                       Edit
+                     </Button>
+                     <Button size="sm" variant="outline" onClick={() => handleDeleteEmployee(employee.id, employee.name)}>
+                       <Trash2 className="h-4 w-4" />
+                     </Button>
+                   </div>
                 </CardContent>
               </Card>
             ))}

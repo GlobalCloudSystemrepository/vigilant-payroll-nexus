@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Search, Plus, Download, Upload, Filter, 
@@ -12,6 +16,17 @@ import {
 
 export default function Employees() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    phone: "",
+    position: "",
+    site: "",
+    status: "",
+    salary: ""
+  });
   const { toast } = useToast();
 
   const employees = [
@@ -108,18 +123,48 @@ export default function Employees() {
   };
 
   const handleEditEmployee = (employeeId: string) => {
-    toast({
-      title: "Edit Employee",
-      description: `Opening edit form for employee ${employeeId}`,
-    });
+    const employee = employees.find(emp => emp.id === employeeId);
+    if (employee) {
+      setSelectedEmployee(employee);
+      setEditFormData({
+        name: employee.name,
+        phone: employee.phone,
+        position: employee.position,
+        site: employee.site,
+        status: employee.status,
+        salary: employee.salary.toString()
+      });
+      setEditDialogOpen(true);
+    }
   };
 
   const handleDeleteEmployee = (employeeId: string, employeeName: string) => {
+    const employee = employees.find(emp => emp.id === employeeId);
+    if (employee) {
+      setSelectedEmployee(employee);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  const handleSaveEdit = () => {
     toast({
-      title: "Delete Employee",
-      description: `Are you sure you want to delete ${employeeName}? This action cannot be undone.`,
-      variant: "destructive",
+      title: "Employee Updated",
+      description: `${editFormData.name} has been updated successfully.`,
     });
+    setEditDialogOpen(false);
+    setSelectedEmployee(null);
+  };
+
+  const confirmDelete = () => {
+    if (selectedEmployee) {
+      toast({
+        title: "Employee Deleted",
+        description: `${selectedEmployee.name} has been removed from the system.`,
+        variant: "destructive",
+      });
+      setDeleteDialogOpen(false);
+      setSelectedEmployee(null);
+    }
   };
 
   const handleAddEmployee = () => {
@@ -326,6 +371,104 @@ export default function Employees() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>
+              Make changes to {selectedEmployee?.name}'s information here.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">Name</Label>
+              <Input
+                id="name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phone" className="text-right">Phone</Label>
+              <Input
+                id="phone"
+                value={editFormData.phone}
+                onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="position" className="text-right">Position</Label>
+              <Input
+                id="position"
+                value={editFormData.position}
+                onChange={(e) => setEditFormData({...editFormData, position: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="site" className="text-right">Site</Label>
+              <Input
+                id="site"
+                value={editFormData.site}
+                onChange={(e) => setEditFormData({...editFormData, site: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">Status</Label>
+              <Select value={editFormData.status} onValueChange={(value) => setEditFormData({...editFormData, status: value})}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="On Leave">On Leave</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="salary" className="text-right">Salary</Label>
+              <Input
+                id="salary"
+                type="number"
+                value={editFormData.salary}
+                onChange={(e) => setEditFormData({...editFormData, salary: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{selectedEmployee?.name}</strong>? 
+              This action cannot be undone and will permanently remove their record from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete Employee
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

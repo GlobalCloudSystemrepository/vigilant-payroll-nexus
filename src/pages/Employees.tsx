@@ -16,6 +16,7 @@ import {
 
 export default function Employees() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
@@ -65,6 +66,26 @@ export default function Employees() {
     }
   ];
 
+  // Filter employees based on search term and status filter
+  const filteredEmployees = employees.filter(employee => {
+    const matchesSearch = employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         employee.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         employee.site.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         employee.position.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || employee.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Calculate real-time stats
+  const stats = {
+    total: filteredEmployees.length,
+    active: filteredEmployees.filter(emp => emp.status === "Active").length,
+    onLeave: filteredEmployees.filter(emp => emp.status === "On Leave").length,
+    inactive: filteredEmployees.filter(emp => emp.status === "Inactive").length
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Active": return "bg-business-success text-white";
@@ -72,6 +93,10 @@ export default function Employees() {
       case "Inactive": return "bg-muted text-muted-foreground";
       default: return "bg-muted text-muted-foreground";
     }
+  };
+
+  const handleFilterChange = (filterType: string) => {
+    setStatusFilter(filterType);
   };
 
   const handleExport = () => {
@@ -202,25 +227,25 @@ export default function Employees() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-foreground">127</div>
+            <div className="text-2xl font-bold text-foreground">{stats.total}</div>
             <p className="text-sm text-muted-foreground">Total Employees</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-business-success">122</div>
+            <div className="text-2xl font-bold text-business-success">{stats.active}</div>
             <p className="text-sm text-muted-foreground">Active</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-business-warning">3</div>
+            <div className="text-2xl font-bold text-business-warning">{stats.onLeave}</div>
             <p className="text-sm text-muted-foreground">On Leave</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-muted-foreground">2</div>
+            <div className="text-2xl font-bold text-muted-foreground">{stats.inactive}</div>
             <p className="text-sm text-muted-foreground">Inactive</p>
           </CardContent>
         </Card>
@@ -243,6 +268,17 @@ export default function Employees() {
               <Filter className="h-4 w-4 mr-2" />
               Filters
             </Button>
+            <Select value={statusFilter} onValueChange={handleFilterChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="On Leave">On Leave</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -258,11 +294,16 @@ export default function Employees() {
           <Card>
             <CardHeader>
               <CardTitle>Employee Directory</CardTitle>
-              <CardDescription>Complete list of all security personnel</CardDescription>
+              <CardDescription>Complete list of all security personnel ({filteredEmployees.length} shown)</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {employees.map((employee) => (
+                {filteredEmployees.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No employees found matching your search criteria.
+                  </div>
+                ) : (
+                  filteredEmployees.map((employee) => (
                   <div 
                     key={employee.id} 
                     className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
@@ -310,7 +351,8 @@ export default function Employees() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -318,7 +360,12 @@ export default function Employees() {
 
         <TabsContent value="cards" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {employees.map((employee) => (
+            {filteredEmployees.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                No employees found matching your search criteria.
+              </div>
+            ) : (
+              filteredEmployees.map((employee) => (
               <Card key={employee.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -367,7 +414,8 @@ export default function Employees() {
                    </div>
                 </CardContent>
               </Card>
-            ))}
+              ))
+            )}
           </div>
         </TabsContent>
       </Tabs>

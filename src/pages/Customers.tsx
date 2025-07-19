@@ -19,6 +19,7 @@ export default function Customers() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [editFormData, setEditFormData] = useState({
     name: "",
@@ -29,6 +30,16 @@ export default function Customers() {
     guardsRequired: "",
     monthlyBill: "",
     status: ""
+  });
+  const [addFormData, setAddFormData] = useState({
+    name: "",
+    contactPerson: "",
+    phone: "",
+    email: "",
+    address: "",
+    guardsRequired: "",
+    monthlyBill: "",
+    status: "Active"
   });
   const { toast } = useToast();
 
@@ -172,10 +183,31 @@ export default function Customers() {
 
   const handleAddCustomer = () => {
     console.log("Add Customer button clicked");
+    setAddDialogOpen(true);
+  };
+
+  const handleSaveNewCustomer = () => {
+    // Generate new customer ID
+    const newId = `CUS${String(customers.length + 1).padStart(3, '0')}`;
+    
     toast({
-      title: "Add Customer",
-      description: "Customer form would open here in a real implementation.",
+      title: "Customer Added",
+      description: `${addFormData.name} has been added successfully with ID ${newId}.`,
     });
+    
+    // Reset form
+    setAddFormData({
+      name: "",
+      contactPerson: "",
+      phone: "",
+      email: "",
+      address: "",
+      guardsRequired: "",
+      monthlyBill: "",
+      status: "Active"
+    });
+    
+    setAddDialogOpen(false);
   };
 
   const handleEditCustomer = (customerId: string) => {
@@ -551,6 +583,113 @@ export default function Customers() {
               Cancel
             </Button>
             <Button onClick={handleSaveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Customer Dialog */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+            <DialogDescription>
+              Enter the details for the new customer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-name" className="text-right">Name</Label>
+              <Input
+                id="add-name"
+                value={addFormData.name}
+                onChange={(e) => setAddFormData({...addFormData, name: e.target.value})}
+                className="col-span-3"
+                placeholder="Company/Site name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-contact" className="text-right">Contact Person</Label>
+              <Input
+                id="add-contact"
+                value={addFormData.contactPerson}
+                onChange={(e) => setAddFormData({...addFormData, contactPerson: e.target.value})}
+                className="col-span-3"
+                placeholder="Mr./Ms. Full Name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-phone" className="text-right">Phone</Label>
+              <Input
+                id="add-phone"
+                value={addFormData.phone}
+                onChange={(e) => setAddFormData({...addFormData, phone: e.target.value})}
+                className="col-span-3"
+                placeholder="+91 98765 43210"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-email" className="text-right">Email</Label>
+              <Input
+                id="add-email"
+                type="email"
+                value={addFormData.email}
+                onChange={(e) => setAddFormData({...addFormData, email: e.target.value})}
+                className="col-span-3"
+                placeholder="contact@company.com"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-address" className="text-right">Address</Label>
+              <Input
+                id="add-address"
+                value={addFormData.address}
+                onChange={(e) => setAddFormData({...addFormData, address: e.target.value})}
+                className="col-span-3"
+                placeholder="City, State"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-guards" className="text-right">Guards Required</Label>
+              <Input
+                id="add-guards"
+                type="number"
+                value={addFormData.guardsRequired}
+                onChange={(e) => setAddFormData({...addFormData, guardsRequired: e.target.value})}
+                className="col-span-3"
+                placeholder="4"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-bill" className="text-right">Monthly Bill</Label>
+              <Input
+                id="add-bill"
+                type="number"
+                value={addFormData.monthlyBill}
+                onChange={(e) => setAddFormData({...addFormData, monthlyBill: e.target.value})}
+                className="col-span-3"
+                placeholder="150000"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-status" className="text-right">Status</Label>
+              <Select value={addFormData.status} onValueChange={(value) => setAddFormData({...addFormData, status: value})}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Understaffed">Understaffed</SelectItem>
+                  <SelectItem value="Contract Expired">Contract Expired</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveNewCustomer}>Add Customer</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

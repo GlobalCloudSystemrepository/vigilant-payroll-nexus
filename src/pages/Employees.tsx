@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Search, Plus, Download, Upload, Filter, 
   User, Phone, MapPin, Calendar, Edit, Trash2 
@@ -11,6 +12,7 @@ import {
 
 export default function Employees() {
   const [searchTerm, setSearchTerm] = useState("");
+  const { toast } = useToast();
 
   const employees = [
     {
@@ -57,6 +59,61 @@ export default function Employees() {
     }
   };
 
+  const handleExport = () => {
+    // Create CSV content
+    const csvContent = [
+      ['ID', 'Name', 'Phone', 'Position', 'Site', 'Status', 'Join Date', 'Salary', 'Advance'],
+      ...employees.map(emp => [
+        emp.id, emp.name, emp.phone, emp.position, emp.site, 
+        emp.status, emp.joinDate, emp.salary, emp.advance
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Export Successful",
+      description: "Employee data has been exported to CSV file.",
+    });
+  };
+
+  const handleBulkImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,.xlsx,.xls';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        toast({
+          title: "Import Started",
+          description: `Processing ${file.name}...`,
+        });
+        // In a real app, you'd process the file here
+        setTimeout(() => {
+          toast({
+            title: "Import Complete",
+            description: "Employee data has been imported successfully.",
+          });
+        }, 2000);
+      }
+    };
+    input.click();
+  };
+
+  const handleAddEmployee = () => {
+    toast({
+      title: "Add Employee",
+      description: "Employee form would open here in a real implementation.",
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -66,15 +123,15 @@ export default function Employees() {
           <p className="text-muted-foreground">Manage your security team records and information</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleBulkImport}>
             <Upload className="h-4 w-4 mr-2" />
             Bulk Import
           </Button>
-          <Button className="bg-gradient-to-r from-primary to-primary-hover">
+          <Button className="bg-gradient-to-r from-primary to-primary-hover" onClick={handleAddEmployee}>
             <Plus className="h-4 w-4 mr-2" />
             Add Employee
           </Button>

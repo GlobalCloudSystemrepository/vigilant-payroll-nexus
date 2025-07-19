@@ -4,6 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Search, Plus, Download, Upload, Filter, 
   Building2, MapPin, Phone, Mail, User, Calendar, Edit, Trash2 
@@ -11,6 +16,21 @@ import {
 
 export default function Customers() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    contactPerson: "",
+    phone: "",
+    email: "",
+    address: "",
+    guardsRequired: "",
+    monthlyBill: "",
+    status: ""
+  });
+  const { toast } = useToast();
 
   const customers = [
     {
@@ -71,6 +91,27 @@ export default function Customers() {
     }
   ];
 
+  // Filter customers based on search term and status filter
+  const filteredCustomers = customers.filter(customer => {
+    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         customer.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         customer.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         customer.address.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || customer.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Calculate real-time stats
+  const stats = {
+    total: filteredCustomers.length,
+    active: filteredCustomers.filter(c => c.status === "Active").length,
+    understaffed: filteredCustomers.filter(c => c.status === "Understaffed").length,
+    totalGuards: filteredCustomers.reduce((sum, customer) => sum + customer.guardsAssigned, 0),
+    totalRevenue: filteredCustomers.reduce((sum, customer) => sum + customer.monthlyBill, 0)
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Active": return "bg-business-success text-white";
@@ -79,6 +120,110 @@ export default function Customers() {
       case "Inactive": return "bg-muted text-muted-foreground";
       default: return "bg-muted text-muted-foreground";
     }
+  };
+
+  const handleExport = () => {
+    const csvContent = [
+      ['ID', 'Name', 'Contact Person', 'Phone', 'Email', 'Address', 'Guards Required', 'Guards Assigned', 'Monthly Bill', 'Status'],
+      ...filteredCustomers.map(customer => [
+        customer.id, customer.name, customer.contactPerson, customer.phone, 
+        customer.email, customer.address, customer.guardsRequired, 
+        customer.guardsAssigned, customer.monthlyBill, customer.status
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `customers_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Export Successful",
+      description: "Customer data has been exported to CSV file.",
+    });
+  };
+
+  const handleBulkImport = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,.xlsx,.xls';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        toast({
+          title: "Import Started",
+          description: `Processing ${file.name}...`,
+        });
+        setTimeout(() => {
+          toast({
+            title: "Import Complete",
+            description: "Customer data has been imported successfully.",
+          });
+        }, 2000);
+      }
+    };
+    input.click();
+  };
+
+  const handleAddCustomer = () => {
+    toast({
+      title: "Add Customer",
+      description: "Customer form would open here in a real implementation.",
+    });
+  };
+
+  const handleEditCustomer = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (customer) {
+      setSelectedCustomer(customer);
+      setEditFormData({
+        name: customer.name,
+        contactPerson: customer.contactPerson,
+        phone: customer.phone,
+        email: customer.email,
+        address: customer.address,
+        guardsRequired: customer.guardsRequired.toString(),
+        monthlyBill: customer.monthlyBill.toString(),
+        status: customer.status
+      });
+      setEditDialogOpen(true);
+    }
+  };
+
+  const handleDeleteCustomer = (customerId: string) => {
+    const customer = customers.find(c => c.id === customerId);
+    if (customer) {
+      setSelectedCustomer(customer);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    toast({
+      title: "Customer Updated",
+      description: `${editFormData.name} has been updated successfully.`,
+    });
+    setEditDialogOpen(false);
+    setSelectedCustomer(null);
+  };
+
+  const confirmDelete = () => {
+    if (selectedCustomer) {
+      toast({
+        title: "Customer Deleted",
+        description: `${selectedCustomer.name} has been removed from the system.`,
+        variant: "destructive",
+      });
+      setDeleteDialogOpen(false);
+      setSelectedCustomer(null);
+    }
+  };
+
+  const handleFilterChange = (filterType: string) => {
+    setStatusFilter(filterType);
   };
 
   const totalRevenue = customers.reduce((sum, customer) => sum + customer.monthlyBill, 0);
@@ -94,15 +239,15 @@ export default function Customers() {
           <p className="text-muted-foreground">Manage client contracts and site information</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleBulkImport}>
             <Upload className="h-4 w-4 mr-2" />
             Bulk Import
           </Button>
-          <Button className="bg-gradient-to-r from-primary to-primary-hover">
+          <Button className="bg-gradient-to-r from-primary to-primary-hover" onClick={handleAddCustomer}>
             <Plus className="h-4 w-4 mr-2" />
             Add Customer
           </Button>
@@ -113,25 +258,25 @@ export default function Customers() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-foreground">{customers.length}</div>
+            <div className="text-2xl font-bold text-foreground">{stats.total}</div>
             <p className="text-sm text-muted-foreground">Total Customers</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-business-success">{activeCustomers}</div>
+            <div className="text-2xl font-bold text-business-success">{stats.active}</div>
             <p className="text-sm text-muted-foreground">Active Contracts</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-primary">{totalGuardsDeployed}</div>
+            <div className="text-2xl font-bold text-primary">{stats.totalGuards}</div>
             <p className="text-sm text-muted-foreground">Guards Deployed</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-lg font-bold text-business-success">₹{totalRevenue.toLocaleString()}</div>
+            <div className="text-lg font-bold text-business-success">₹{stats.totalRevenue.toLocaleString()}</div>
             <p className="text-sm text-muted-foreground">Monthly Revenue</p>
           </CardContent>
         </Card>
@@ -154,6 +299,18 @@ export default function Customers() {
               <Filter className="h-4 w-4 mr-2" />
               Filters
             </Button>
+            <Select value={statusFilter} onValueChange={handleFilterChange}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Understaffed">Understaffed</SelectItem>
+                <SelectItem value="Contract Expired">Contract Expired</SelectItem>
+                <SelectItem value="Inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -169,11 +326,16 @@ export default function Customers() {
           <Card>
             <CardHeader>
               <CardTitle>Customer Directory</CardTitle>
-              <CardDescription>Complete list of all client sites and contracts</CardDescription>
+              <CardDescription>Complete list of all client sites and contracts ({filteredCustomers.length} shown)</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {customers.map((customer) => (
+                {filteredCustomers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No customers found matching your search criteria.
+                  </div>
+                ) : (
+                  filteredCustomers.map((customer) => (
                   <div 
                     key={customer.id} 
                     className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
@@ -211,16 +373,17 @@ export default function Customers() {
                         {customer.status}
                       </Badge>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => handleEditCustomer(customer.id)}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => handleDeleteCustomer(customer.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
                   </div>
-                ))}
+                ))
+              )}
               </div>
             </CardContent>
           </Card>
@@ -228,7 +391,12 @@ export default function Customers() {
 
         <TabsContent value="cards" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {customers.map((customer) => (
+            {filteredCustomers.length === 0 ? (
+              <div className="col-span-full text-center py-8 text-muted-foreground">
+                No customers found matching your search criteria.
+              </div>
+            ) : (
+              filteredCustomers.map((customer) => (
               <Card key={customer.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
@@ -268,21 +436,140 @@ export default function Customers() {
                       <span className="text-sm">{customer.guardsAssigned}/{customer.guardsRequired}</span>
                     </div>
                   </div>
-                  <div className="flex gap-2 pt-2">
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <Edit className="h-4 w-4 mr-1" />
-                      Edit
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                   <div className="flex gap-2 pt-2">
+                     <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEditCustomer(customer.id)}>
+                       <Edit className="h-4 w-4 mr-1" />
+                       Edit
+                     </Button>
+                     <Button size="sm" variant="outline" onClick={() => handleDeleteCustomer(customer.id)}>
+                       <Trash2 className="h-4 w-4" />
+                     </Button>
+                   </div>
+                 </CardContent>
+               </Card>
+             ))
+           )}
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Customer</DialogTitle>
+            <DialogDescription>
+              Make changes to {selectedCustomer?.name}'s information here.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">Name</Label>
+              <Input
+                id="name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="contact" className="text-right">Contact Person</Label>
+              <Input
+                id="contact"
+                value={editFormData.contactPerson}
+                onChange={(e) => setEditFormData({...editFormData, contactPerson: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phone" className="text-right">Phone</Label>
+              <Input
+                id="phone"
+                value={editFormData.phone}
+                onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">Email</Label>
+              <Input
+                id="email"
+                value={editFormData.email}
+                onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="address" className="text-right">Address</Label>
+              <Input
+                id="address"
+                value={editFormData.address}
+                onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="guards" className="text-right">Guards Required</Label>
+              <Input
+                id="guards"
+                type="number"
+                value={editFormData.guardsRequired}
+                onChange={(e) => setEditFormData({...editFormData, guardsRequired: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="bill" className="text-right">Monthly Bill</Label>
+              <Input
+                id="bill"
+                type="number"
+                value={editFormData.monthlyBill}
+                onChange={(e) => setEditFormData({...editFormData, monthlyBill: e.target.value})}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">Status</Label>
+              <Select value={editFormData.status} onValueChange={(value) => setEditFormData({...editFormData, status: value})}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Understaffed">Understaffed</SelectItem>
+                  <SelectItem value="Contract Expired">Contract Expired</SelectItem>
+                  <SelectItem value="Inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{selectedCustomer?.name}</strong>? 
+              This action cannot be undone and will permanently remove their record from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete Customer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

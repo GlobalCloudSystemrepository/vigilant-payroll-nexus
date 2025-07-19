@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import {
 
 export default function Dashboard() {
   const [currentTime] = useState(new Date().toLocaleString());
+  const navigate = useNavigate();
 
   const stats = [
     {
@@ -74,19 +76,22 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <div className="flex gap-3 flex-wrap">
-        <Button className="bg-gradient-to-r from-primary to-primary-hover shadow-business">
+        <Button 
+          className="bg-gradient-to-r from-primary to-primary-hover shadow-business"
+          onClick={() => navigate('/employees')}
+        >
           <PlusCircle className="h-4 w-4 mr-2" />
           Quick Add Employee
         </Button>
-        <Button variant="outline">
+        <Button variant="outline" onClick={() => navigate('/attendance')}>
           <UserCheck className="h-4 w-4 mr-2" />
           Mark Attendance
         </Button>
-        <Button variant="outline">
+        <Button variant="outline" onClick={() => navigate('/schedules')}>
           <Calendar className="h-4 w-4 mr-2" />
           View Schedule
         </Button>
-        <Button variant="outline">
+        <Button variant="outline" onClick={() => navigate('/payroll')}>
           <DollarSign className="h-4 w-4 mr-2" />
           Process Payment
         </Button>

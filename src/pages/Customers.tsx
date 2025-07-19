@@ -123,6 +123,7 @@ export default function Customers() {
   };
 
   const handleExport = () => {
+    console.log("Export button clicked");
     const csvContent = [
       ['ID', 'Name', 'Contact Person', 'Phone', 'Email', 'Address', 'Guards Required', 'Guards Assigned', 'Monthly Bill', 'Status'],
       ...filteredCustomers.map(customer => [
@@ -147,6 +148,7 @@ export default function Customers() {
   };
 
   const handleBulkImport = () => {
+    console.log("Bulk Import button clicked");
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.csv,.xlsx,.xls';
@@ -169,6 +171,7 @@ export default function Customers() {
   };
 
   const handleAddCustomer = () => {
+    console.log("Add Customer button clicked");
     toast({
       title: "Add Customer",
       description: "Customer form would open here in a real implementation.",

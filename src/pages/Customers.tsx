@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Search, Plus, Download, Upload, Filter, 
   Building2, MapPin, Phone, Mail, User, Calendar, Edit, Trash2 
@@ -21,6 +22,8 @@ export default function Customers() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editFormData, setEditFormData] = useState({
     name: "",
     contactPerson: "",
@@ -39,75 +42,43 @@ export default function Customers() {
     address: "",
     guardsRequired: "",
     monthlyBill: "",
-    status: "Active"
+    status: "active"
   });
   const { toast } = useToast();
 
-  const customers = [
-    {
-      id: "CUS001",
-      name: "Alpha Corporate Tower",
-      contactPerson: "Mr. Rajesh Kumar",
-      phone: "+91 98765 43210",
-      email: "rajesh@alphacorp.com",
-      address: "Sector 62, Noida",
-      contractStart: "2023-01-01",
-      contractEnd: "2024-12-31",
-      guardsRequired: 6,
-      guardsAssigned: 6,
-      monthlyBill: 180000,
-      status: "Active"
-    },
-    {
-      id: "CUS002", 
-      name: "Beta Shopping Mall",
-      contactPerson: "Ms. Priya Sharma",
-      phone: "+91 98765 43211",
-      email: "priya@betamall.com",
-      address: "MG Road, Bangalore",
-      contractStart: "2023-03-15",
-      contractEnd: "2025-03-14",
-      guardsRequired: 8,
-      guardsAssigned: 8,
-      monthlyBill: 240000,
-      status: "Active"
-    },
-    {
-      id: "CUS003",
-      name: "Gamma Residential Complex",
-      contactPerson: "Mr. Amit Patel",
-      phone: "+91 98765 43212",
-      email: "amit@gammaresidences.com",
-      address: "Bandra West, Mumbai",
-      contractStart: "2022-06-01",
-      contractEnd: "2024-05-31",
-      guardsRequired: 4,
-      guardsAssigned: 3,
-      monthlyBill: 120000,
-      status: "Understaffed"
-    },
-    {
-      id: "CUS004",
-      name: "Delta Office Complex",
-      contactPerson: "Ms. Sunita Reddy",
-      phone: "+91 98765 43213",
-      email: "sunita@deltaoffices.com",
-      address: "Hitech City, Hyderabad",
-      contractStart: "2024-01-01",
-      contractEnd: "2026-12-31",
-      guardsRequired: 5,
-      guardsAssigned: 5,
-      monthlyBill: 150000,
-      status: "Active"
+  // Load customers from Supabase
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCustomers(data || []);
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load customers",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
 
   // Filter customers based on search term and status filter
   const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer.contactPerson.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer.address.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = customer.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         customer.customer_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         customer.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         customer.address?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || customer.status === statusFilter;
     
@@ -117,18 +88,16 @@ export default function Customers() {
   // Calculate real-time stats
   const stats = {
     total: filteredCustomers.length,
-    active: filteredCustomers.filter(c => c.status === "Active").length,
-    understaffed: filteredCustomers.filter(c => c.status === "Understaffed").length,
-    totalGuards: filteredCustomers.reduce((sum, customer) => sum + customer.guardsAssigned, 0),
-    totalRevenue: filteredCustomers.reduce((sum, customer) => sum + customer.monthlyBill, 0)
+    active: filteredCustomers.filter(c => c.status === "active").length,
+    inactive: filteredCustomers.filter(c => c.status === "inactive").length,
+    totalGuards: filteredCustomers.reduce((sum, customer) => sum + (customer.guards_required || 0), 0),
+    totalRevenue: filteredCustomers.reduce((sum, customer) => sum + (customer.monthly_bill || 0), 0)
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Active": return "bg-business-success text-white";
-      case "Understaffed": return "bg-business-warning text-white";
-      case "Contract Expired": return "bg-destructive text-white";
-      case "Inactive": return "bg-muted text-muted-foreground";
+      case "active": return "bg-business-success text-white";
+      case "inactive": return "bg-muted text-muted-foreground";
       default: return "bg-muted text-muted-foreground";
     }
   };
@@ -136,11 +105,11 @@ export default function Customers() {
   const handleExport = () => {
     console.log("Export button clicked");
     const csvContent = [
-      ['ID', 'Name', 'Contact Person', 'Phone', 'Email', 'Address', 'Guards Required', 'Guards Assigned', 'Monthly Bill', 'Status'],
+      ['ID', 'Name', 'Contact Person', 'Phone', 'Email', 'Address', 'Guards Required', 'Monthly Bill', 'Status'],
       ...filteredCustomers.map(customer => [
-        customer.id, customer.name, customer.contactPerson, customer.phone, 
-        customer.email, customer.address, customer.guardsRequired, 
-        customer.guardsAssigned, customer.monthlyBill, customer.status
+        customer.customer_id, customer.company_name, customer.contact_person, customer.phone, 
+        customer.email, customer.address, customer.guards_required, 
+        customer.monthly_bill, customer.status
       ])
     ].map(row => row.join(',')).join('\n');
 
@@ -186,74 +155,150 @@ export default function Customers() {
     setAddDialogOpen(true);
   };
 
-  const handleSaveNewCustomer = () => {
-    // Generate new customer ID
-    const newId = `CUS${String(customers.length + 1).padStart(3, '0')}`;
-    
-    toast({
-      title: "Customer Added",
-      description: `${addFormData.name} has been added successfully with ID ${newId}.`,
-    });
-    
-    // Reset form
-    setAddFormData({
-      name: "",
-      contactPerson: "",
-      phone: "",
-      email: "",
-      address: "",
-      guardsRequired: "",
-      monthlyBill: "",
-      status: "Active"
-    });
-    
-    setAddDialogOpen(false);
+  const handleSaveNewCustomer = async () => {
+    try {
+      // Generate new customer ID
+      const newId = `CUS${String(customers.length + 1).padStart(3, '0')}`;
+      
+      const { data, error } = await supabase
+        .from('customers')
+        .insert([
+          {
+            customer_id: newId,
+            company_name: addFormData.name,
+            contact_person: addFormData.contactPerson,
+            phone: addFormData.phone,
+            email: addFormData.email,
+            address: addFormData.address,
+            guards_required: parseInt(addFormData.guardsRequired) || 0,
+            monthly_bill: parseFloat(addFormData.monthlyBill) || 0,
+            status: addFormData.status
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+
+      toast({
+        title: "Customer Added",
+        description: `${addFormData.name} has been added successfully with ID ${newId}.`,
+      });
+      
+      // Reset form
+      setAddFormData({
+        name: "",
+        contactPerson: "",
+        phone: "",
+        email: "",
+        address: "",
+        guardsRequired: "",
+        monthlyBill: "",
+        status: "active"
+      });
+      
+      setAddDialogOpen(false);
+      fetchCustomers(); // Refresh the list
+    } catch (error) {
+      console.error('Error adding customer:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add customer",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleEditCustomer = (customerId: string) => {
-    const customer = customers.find(c => c.id === customerId);
+    const customer = customers.find(c => c.customer_id === customerId);
     if (customer) {
       setSelectedCustomer(customer);
       setEditFormData({
-        name: customer.name,
-        contactPerson: customer.contactPerson,
-        phone: customer.phone,
-        email: customer.email,
-        address: customer.address,
-        guardsRequired: customer.guardsRequired.toString(),
-        monthlyBill: customer.monthlyBill.toString(),
-        status: customer.status
+        name: customer.company_name || "",
+        contactPerson: customer.contact_person || "",
+        phone: customer.phone || "",
+        email: customer.email || "",
+        address: customer.address || "",
+        guardsRequired: (customer.guards_required || 0).toString(),
+        monthlyBill: (customer.monthly_bill || 0).toString(),
+        status: customer.status || "active"
       });
       setEditDialogOpen(true);
     }
   };
 
   const handleDeleteCustomer = (customerId: string) => {
-    const customer = customers.find(c => c.id === customerId);
+    const customer = customers.find(c => c.customer_id === customerId);
     if (customer) {
       setSelectedCustomer(customer);
       setDeleteDialogOpen(true);
     }
   };
 
-  const handleSaveEdit = () => {
-    toast({
-      title: "Customer Updated",
-      description: `${editFormData.name} has been updated successfully.`,
-    });
-    setEditDialogOpen(false);
-    setSelectedCustomer(null);
-  };
+  const handleSaveEdit = async () => {
+    try {
+      if (!selectedCustomer) return;
+      
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          company_name: editFormData.name,
+          contact_person: editFormData.contactPerson,
+          phone: editFormData.phone,
+          email: editFormData.email,
+          address: editFormData.address,
+          guards_required: parseInt(editFormData.guardsRequired) || 0,
+          monthly_bill: parseFloat(editFormData.monthlyBill) || 0,
+          status: editFormData.status
+        })
+        .eq('id', selectedCustomer.id);
 
-  const confirmDelete = () => {
-    if (selectedCustomer) {
+      if (error) throw error;
+
       toast({
-        title: "Customer Deleted",
-        description: `${selectedCustomer.name} has been removed from the system.`,
+        title: "Customer Updated",
+        description: `${editFormData.name} has been updated successfully.`,
+      });
+      
+      setEditDialogOpen(false);
+      setSelectedCustomer(null);
+      fetchCustomers(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating customer:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update customer",
         variant: "destructive",
       });
+    }
+  };
+
+  const confirmDelete = async () => {
+    try {
+      if (!selectedCustomer) return;
+      
+      const { error } = await supabase
+        .from('customers')
+        .delete()
+        .eq('id', selectedCustomer.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Customer Deleted",
+        description: `${selectedCustomer.company_name} has been removed from the system.`,
+        variant: "destructive",
+      });
+      
       setDeleteDialogOpen(false);
       setSelectedCustomer(null);
+      fetchCustomers(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete customer",
+        variant: "destructive",
+      });
     }
   };
 
@@ -261,9 +306,6 @@ export default function Customers() {
     setStatusFilter(filterType);
   };
 
-  const totalRevenue = customers.reduce((sum, customer) => sum + customer.monthlyBill, 0);
-  const activeCustomers = customers.filter(c => c.status === "Active").length;
-  const totalGuardsDeployed = customers.reduce((sum, customer) => sum + customer.guardsAssigned, 0);
 
   return (
     <div className="space-y-6">
@@ -300,13 +342,13 @@ export default function Customers() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-business-success">{stats.active}</div>
-            <p className="text-sm text-muted-foreground">Active Contracts</p>
+            <p className="text-sm text-muted-foreground">Active Customers</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-primary">{stats.totalGuards}</div>
-            <p className="text-sm text-muted-foreground">Guards Deployed</p>
+            <p className="text-sm text-muted-foreground">Guards Required</p>
           </CardContent>
         </Card>
         <Card>
@@ -340,10 +382,8 @@ export default function Customers() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Understaffed">Understaffed</SelectItem>
-                <SelectItem value="Contract Expired">Contract Expired</SelectItem>
-                <SelectItem value="Inactive">Inactive</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -380,8 +420,8 @@ export default function Customers() {
                         <Building2 className="h-6 w-6 text-business-blue" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-foreground">{customer.name}</h3>
-                        <p className="text-sm text-muted-foreground">{customer.id} • {customer.contactPerson}</p>
+                        <h3 className="font-semibold text-foreground">{customer.company_name}</h3>
+                        <p className="text-sm text-muted-foreground">{customer.customer_id} • {customer.contact_person}</p>
                         <div className="flex items-center gap-4 mt-1">
                           <span className="flex items-center text-xs text-muted-foreground">
                             <Phone className="h-3 w-3 mr-1" />
@@ -400,18 +440,18 @@ export default function Customers() {
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <p className="font-medium text-foreground">₹{customer.monthlyBill.toLocaleString()}/month</p>
-                        <p className="text-sm text-muted-foreground">{customer.guardsAssigned}/{customer.guardsRequired} guards</p>
-                        <p className="text-xs text-muted-foreground">Contract: {customer.contractEnd}</p>
+                        <p className="font-medium text-foreground">₹{(customer.monthly_bill || 0).toLocaleString()}/month</p>
+                        <p className="text-sm text-muted-foreground">{customer.guards_required || 0} guards required</p>
+                        <p className="text-xs text-muted-foreground">ID: {customer.customer_id}</p>
                       </div>
                       <Badge className={getStatusColor(customer.status)}>
                         {customer.status}
                       </Badge>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => handleEditCustomer(customer.id)}>
+                        <Button size="sm" variant="outline" onClick={() => handleEditCustomer(customer.customer_id)}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDeleteCustomer(customer.id)}>
+                        <Button size="sm" variant="outline" onClick={() => handleDeleteCustomer(customer.customer_id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -435,18 +475,18 @@ export default function Customers() {
               <Card key={customer.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{customer.name}</CardTitle>
+                    <CardTitle className="text-lg">{customer.company_name}</CardTitle>
                     <Badge className={getStatusColor(customer.status)}>
                       {customer.status}
                     </Badge>
                   </div>
-                  <CardDescription>{customer.contactPerson}</CardDescription>
+                  <CardDescription>{customer.contact_person}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-2">
                     <div className="flex items-center text-sm">
                       <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
-                      {customer.id}
+                      {customer.customer_id}
                     </div>
                     <div className="flex items-center text-sm">
                       <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
@@ -456,27 +496,23 @@ export default function Customers() {
                       <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
                       {customer.address}
                     </div>
-                    <div className="flex items-center text-sm">
-                      <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                      Until {customer.contractEnd}
-                    </div>
                   </div>
                   <div className="pt-2 border-t">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-muted-foreground">Monthly Bill</span>
-                      <span className="font-semibold">₹{customer.monthlyBill.toLocaleString()}</span>
+                      <span className="font-semibold">₹{(customer.monthly_bill || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center mt-1">
-                      <span className="text-sm text-muted-foreground">Guards</span>
-                      <span className="text-sm">{customer.guardsAssigned}/{customer.guardsRequired}</span>
+                      <span className="text-sm text-muted-foreground">Guards Required</span>
+                      <span className="text-sm">{customer.guards_required || 0}</span>
                     </div>
                   </div>
                    <div className="flex gap-2 pt-2">
-                     <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEditCustomer(customer.id)}>
+                     <Button size="sm" variant="outline" className="flex-1" onClick={() => handleEditCustomer(customer.customer_id)}>
                        <Edit className="h-4 w-4 mr-1" />
                        Edit
                      </Button>
-                     <Button size="sm" variant="outline" onClick={() => handleDeleteCustomer(customer.id)}>
+                     <Button size="sm" variant="outline" onClick={() => handleDeleteCustomer(customer.customer_id)}>
                        <Trash2 className="h-4 w-4" />
                      </Button>
                    </div>
@@ -494,7 +530,7 @@ export default function Customers() {
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
             <DialogDescription>
-              Make changes to {selectedCustomer?.name}'s information here.
+              Make changes to {selectedCustomer?.company_name}'s information here.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -570,10 +606,8 @@ export default function Customers() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Understaffed">Understaffed</SelectItem>
-                  <SelectItem value="Contract Expired">Contract Expired</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -677,10 +711,8 @@ export default function Customers() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Understaffed">Understaffed</SelectItem>
-                  <SelectItem value="Contract Expired">Contract Expired</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -700,7 +732,7 @@ export default function Customers() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Customer</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{selectedCustomer?.name}</strong>? 
+              Are you sure you want to delete <strong>{selectedCustomer?.company_name}</strong>? 
               This action cannot be undone and will permanently remove their record from the system.
             </AlertDialogDescription>
           </AlertDialogHeader>

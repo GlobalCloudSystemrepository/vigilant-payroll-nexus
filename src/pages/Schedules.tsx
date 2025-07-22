@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -445,111 +444,93 @@ export default function Schedules() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Calendar */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Schedule Calendar</CardTitle>
-            <CardDescription>Select date to view/edit</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              className="w-full"
-            />
-          </CardContent>
-        </Card>
+      {/* Main Content - Full Width */}
+      <div>
+        <Tabs defaultValue="today" className="w-full">
+          <TabsList className="grid w-full grid-cols-1">
+            <TabsTrigger value="today">Current Schedules</TabsTrigger>
+          </TabsList>
 
-        {/* Main Content */}
-        <div className="lg:col-span-3">
-          <Tabs defaultValue="today" className="w-full">
-            <TabsList className="grid w-full grid-cols-1">
-              <TabsTrigger value="today">Current Schedules</TabsTrigger>
-            </TabsList>
-
-            {/* Current Schedules */}
-            <TabsContent value="today" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Schedule Overview</CardTitle>
-                  <CardDescription>
-                    {startDate && endDate ? 
-                      `${format(startDate, "MMM dd")} - ${format(endDate, "MMM dd")}` : 
-                      "All schedules"
-                    }
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">Loading schedules...</p>
-                    </div>
-                  ) : schedules.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">No schedules found for the selected date range.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {schedules.map((schedule) => (
-                        <div 
-                          key={schedule.id}
-                          className="p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <h3 className="font-semibold text-foreground">
-                                {schedule.customers?.company_name || 'Unknown Customer'}
-                              </h3>
-                              <p className="text-sm text-muted-foreground">
-                                {format(new Date(schedule.shift_date), 'PPP')} • {schedule.start_time} - {schedule.end_time}
-                              </p>
-                              {schedule.location && (
-                                <p className="text-xs text-muted-foreground">📍 {schedule.location}</p>
-                              )}
-                            </div>
-                            <Badge className={getStatusColor(schedule.status)}>
-                              {schedule.status}
-                            </Badge>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground mb-2">Assigned Employee</p>
-                              <div className="flex items-center text-sm">
-                                <User className="h-3 w-3 mr-2 text-muted-foreground" />
-                                {schedule.employees?.name || 'Unknown Employee'}
-                              </div>
-                            </div>
-                            
-                            {schedule.notes && (
-                              <div>
-                                <p className="text-sm font-medium text-muted-foreground mb-2">Notes</p>
-                                <p className="text-sm">{schedule.notes}</p>
-                              </div>
+          {/* Current Schedules */}
+          <TabsContent value="today" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Schedule Overview</CardTitle>
+                <CardDescription>
+                  {startDate && endDate ? 
+                    `${format(startDate, "MMM dd")} - ${format(endDate, "MMM dd")}` : 
+                    "All schedules"
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">Loading schedules...</p>
+                  </div>
+                ) : schedules.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No schedules found for the selected date range.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {schedules.map((schedule) => (
+                      <div 
+                        key={schedule.id}
+                        className="p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h3 className="font-semibold text-foreground">
+                              {schedule.customers?.company_name || 'Unknown Customer'}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {format(new Date(schedule.shift_date), 'PPP')} • {schedule.start_time} - {schedule.end_time}
+                            </p>
+                            {schedule.location && (
+                              <p className="text-xs text-muted-foreground">📍 {schedule.location}</p>
                             )}
                           </div>
-                          
-                          <div className="flex gap-2 mt-4">
-                            <Button size="sm" variant="outline">
-                              <Edit className="h-4 w-4 mr-1" />
-                              Edit
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              <Copy className="h-4 w-4 mr-1" />
-                              Duplicate
-                            </Button>
-                          </div>
+                          <Badge className={getStatusColor(schedule.status)}>
+                            {schedule.status}
+                          </Badge>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground mb-2">Assigned Employee</p>
+                            <div className="flex items-center text-sm">
+                              <User className="h-3 w-3 mr-2 text-muted-foreground" />
+                              {schedule.employees?.name || 'Unknown Employee'}
+                            </div>
+                          </div>
+                          
+                          {schedule.notes && (
+                            <div>
+                              <p className="text-sm font-medium text-muted-foreground mb-2">Notes</p>
+                              <p className="text-sm">{schedule.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-2 mt-4">
+                          <Button size="sm" variant="outline">
+                            <Edit className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Copy className="h-4 w-4 mr-1" />
+                            Duplicate
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

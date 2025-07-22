@@ -1,9 +1,7 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   UserCheck, UserX, Clock, MapPin, 
@@ -211,132 +209,113 @@ export default function Attendance() {
         </Card>
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Attendance Calendar</CardTitle>
-            <CardDescription>Select date to view attendance</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              className="w-full"
-            />
-          </CardContent>
-        </Card>
+      {/* Main Content - Full Width */}
+      <div>
+        <Tabs defaultValue="today" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="today">Today</TabsTrigger>
+            <TabsTrigger value="weekly">This Week</TabsTrigger>
+            <TabsTrigger value="monthly">This Month</TabsTrigger>
+          </TabsList>
 
-        {/* Today's Attendance */}
-        <div className="lg:col-span-2">
-          <Tabs defaultValue="today" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="today">Today</TabsTrigger>
-              <TabsTrigger value="weekly">This Week</TabsTrigger>
-              <TabsTrigger value="monthly">This Month</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="today" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Attendance Records</CardTitle>
-                  <CardDescription>
-                    {selectedDate?.toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="flex justify-center py-8">
-                      <div className="text-muted-foreground">Loading attendance records...</div>
-                    </div>
-                  ) : attendanceRecords.length > 0 ? (
-                    <div className="space-y-4">
-                      {attendanceRecords.map((record) => (
-                        <div 
-                          key={record.id}
-                          className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                              {getStatusIcon(record.status)}
-                            </div>
-                            <div>
-                              <h3 className="font-semibold text-foreground">{record.employee_name}</h3>
-                              <p className="text-sm text-muted-foreground">{record.employee_id}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <MapPin className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">
-                                  {record.customer_name} - {record.location}
-                                </span>
-                              </div>
-                            </div>
+          <TabsContent value="today" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Attendance Records</CardTitle>
+                <CardDescription>
+                  {selectedDate?.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="text-muted-foreground">Loading attendance records...</div>
+                  </div>
+                ) : attendanceRecords.length > 0 ? (
+                  <div className="space-y-4">
+                    {attendanceRecords.map((record) => (
+                      <div 
+                        key={record.id}
+                        className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                            {getStatusIcon(record.status)}
                           </div>
-                          
-                          <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <div className="flex gap-4 text-sm">
-                                <div>
-                                  <p className="text-muted-foreground">Check In</p>
-                                  <p className="font-medium">{record.checkIn}</p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">Check Out</p>
-                                  <p className="font-medium">{record.checkOut}</p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">Hours</p>
-                                  <p className="font-medium">{record.hours}</p>
-                                </div>
-                              </div>
+                          <div>
+                            <h3 className="font-semibold text-foreground">{record.employee_name}</h3>
+                            <p className="text-sm text-muted-foreground">{record.employee_id}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <MapPin className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-xs text-muted-foreground">
+                                {record.customer_name} - {record.location}
+                              </span>
                             </div>
-                            <Badge className={getStatusColor(record.status)}>
-                              {record.status}
-                            </Badge>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No attendance records found for this date
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+                        
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className="flex gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Check In</p>
+                                <p className="font-medium">{record.checkIn}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Check Out</p>
+                                <p className="font-medium">{record.checkOut}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Hours</p>
+                                <p className="font-medium">{record.hours}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <Badge className={getStatusColor(record.status)}>
+                            {record.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No attendance records found for this date
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            <TabsContent value="weekly">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Weekly Overview</CardTitle>
-                  <CardDescription>Attendance summary for this week</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">Weekly attendance analytics will be displayed here.</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
+          <TabsContent value="weekly">
+            <Card>
+              <CardHeader>
+                <CardTitle>Weekly Overview</CardTitle>
+                <CardDescription>Attendance summary for this week</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Weekly attendance analytics will be displayed here.</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            <TabsContent value="monthly">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Monthly Overview</CardTitle>
-                  <CardDescription>Attendance summary for this month</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">Monthly attendance analytics will be displayed here.</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
+          <TabsContent value="monthly">
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Overview</CardTitle>
+                <CardDescription>Attendance summary for this month</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Monthly attendance analytics will be displayed here.</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Dialogs */}

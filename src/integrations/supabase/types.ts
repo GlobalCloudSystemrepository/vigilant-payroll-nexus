@@ -24,6 +24,7 @@ export type Database = {
           hours_worked: number | null
           id: string
           notes: string | null
+          schedule_id: string | null
           status: string
           updated_at: string
         }
@@ -36,6 +37,7 @@ export type Database = {
           hours_worked?: number | null
           id?: string
           notes?: string | null
+          schedule_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -48,12 +50,27 @@ export type Database = {
           hours_worked?: number | null
           id?: string
           notes?: string | null
+          schedule_id?: string | null
           status?: string
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "attendance_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_attendance_employee"
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
@@ -254,6 +271,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_schedules_customer"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_schedules_employee"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "schedules_customer_id_fkey"
             columns: ["customer_id"]

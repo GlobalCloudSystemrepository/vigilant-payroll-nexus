@@ -60,16 +60,15 @@ export default function Attendance() {
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
       
-      // Fetch attendance records with employee and schedule info
+      // Fetch attendance records with employee info and schedule details
       const { data: attendance, error } = await supabase
         .from('attendance')
         .select(`
           *,
-          employees!inner(name),
-          schedules!inner(
-            customer_id,
+          employees!fk_attendance_employee(name),
+          schedules!attendance_schedule_id_fkey(
             location,
-            customers(company_name)
+            customers!fk_schedules_customer(company_name)
           )
         `)
         .eq('date', dateStr);
@@ -344,11 +343,13 @@ export default function Attendance() {
       <AttendanceMarkDialog 
         open={markDialogOpen} 
         onOpenChange={setMarkDialogOpen}
+        onAttendanceMarked={fetchAttendanceData}
       />
       <AttendanceMarkDialog 
         open={bulkDialogOpen} 
         onOpenChange={setBulkDialogOpen}
         isBulk={true}
+        onAttendanceMarked={fetchAttendanceData}
       />
     </div>
   );

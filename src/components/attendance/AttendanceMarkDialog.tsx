@@ -22,15 +22,22 @@ interface ScheduledEmployee {
   end_time: string;
   shift_date: string;
   attendance_status?: string;
+  schedule_id: string;
 }
 
 interface AttendanceMarkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isBulk?: boolean;
+  onAttendanceMarked?: () => void;
 }
 
-export default function AttendanceMarkDialog({ open, onOpenChange, isBulk = false }: AttendanceMarkDialogProps) {
+export default function AttendanceMarkDialog({ 
+  open, 
+  onOpenChange, 
+  isBulk = false, 
+  onAttendanceMarked 
+}: AttendanceMarkDialogProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [scheduledEmployees, setScheduledEmployees] = useState<ScheduledEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
@@ -62,8 +69,8 @@ export default function AttendanceMarkDialog({ open, onOpenChange, isBulk = fals
           start_time,
           end_time,
           location,
-          employees!inner(name),
-          customers(company_name)
+          employees!fk_schedules_employee(name),
+          customers!fk_schedules_customer(company_name)
         `)
         .eq('shift_date', format(selectedDate, 'yyyy-MM-dd'))
         .eq('status', 'scheduled');
@@ -78,7 +85,8 @@ export default function AttendanceMarkDialog({ open, onOpenChange, isBulk = fals
         location: schedule.location || 'No location specified',
         start_time: schedule.start_time,
         end_time: schedule.end_time,
-        shift_date: schedule.shift_date
+        shift_date: schedule.shift_date,
+        schedule_id: schedule.id
       })) || [];
 
       setScheduledEmployees(formattedEmployees);
@@ -138,6 +146,7 @@ export default function AttendanceMarkDialog({ open, onOpenChange, isBulk = fals
 
         const attendanceRecord = {
           employee_id: employee.employee_id,
+          schedule_id: employee.schedule_id,
           date: format(selectedDate, 'yyyy-MM-dd'),
           status: attendance.status,
           check_in_time: attendance.checkIn ? 
@@ -164,6 +173,7 @@ export default function AttendanceMarkDialog({ open, onOpenChange, isBulk = fals
       });
       
       onOpenChange(false);
+      onAttendanceMarked?.();
     } catch (error) {
       console.error('Error marking attendance:', error);
       toast({
@@ -224,7 +234,6 @@ export default function AttendanceMarkDialog({ open, onOpenChange, isBulk = fals
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
                   initialFocus
-                  className="pointer-events-auto"
                 />
               </PopoverContent>
             </Popover>

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import {
 import AttendanceMarkDialog from "@/components/attendance/AttendanceMarkDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 
 interface AttendanceRecord {
   id: string;
@@ -34,6 +36,18 @@ interface AttendanceStats {
 export default function Attendance() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [weeklyStats, setWeeklyStats] = useState<AttendanceStats>({
+    present: 0,
+    late: 0,
+    absent: 0,
+    rate: 0
+  });
+  const [monthlyStats, setMonthlyStats] = useState<AttendanceStats>({
+    present: 0,
+    late: 0,
+    absent: 0,
+    rate: 0
+  });
   const [attendanceStats, setAttendanceStats] = useState<AttendanceStats>({
     present: 0,
     late: 0,
@@ -48,6 +62,8 @@ export default function Attendance() {
   useEffect(() => {
     if (selectedDate) {
       fetchAttendanceData();
+      fetchWeeklyStats();
+      fetchMonthlyStats();
     }
   }, [selectedDate]);
 
@@ -63,17 +79,51 @@ export default function Attendance() {
         .from('attendance')
         .select(`
           *,
-          employees!fk_attendance_employee(name),
+          employees!attendance_employee_id_fkey(name),
           schedules!attendance_schedule_id_fkey(
             location,
-            customers!fk_schedules_customer(company_name)
+            customers!schedules_customer_id_fkey(company_name)
           )
         `)
         .eq('date', dateStr);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching attendance:', error);
+        // Try fallback query without foreign key relationships
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('attendance')
+          .select('*')
+          .eq('date', dateStr);
+        
+        if (fallbackError) throw fallbackError;
+        
+        const formattedFallback = fallbackData?.map(record => ({
+          id: record.id,
+          employee_id: record.employee_id,
+          employee_name: 'Loading...',
+          customer_name: 'Loading...',
+          location: 'Loading...',
+          checkIn: record.check_in_time ? 
+            new Date(record.check_in_time).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }) : '-',
+          checkOut: record.check_out_time ? 
+            new Date(record.check_out_time).toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }) : '-',
+          status: record.status,
+          hours: record.hours_worked ? `${record.hours_worked}h` : '0h',
+          date: record.date
+        })) || [];
+        
+        setAttendanceRecords(formattedFallback);
+        calculateStats(formattedFallback);
+        return;
+      }
 
-      // Format the data
+      // Format the data with proper relationships
       const formattedRecords: AttendanceRecord[] = attendance?.map(record => ({
         id: record.id,
         employee_id: record.employee_id,
@@ -96,20 +146,7 @@ export default function Attendance() {
       })) || [];
 
       setAttendanceRecords(formattedRecords);
-
-      // Calculate stats
-      const present = formattedRecords.filter(r => r.status === 'present').length;
-      const late = formattedRecords.filter(r => r.status === 'late').length;
-      const absent = formattedRecords.filter(r => r.status === 'absent').length;
-      const total = present + late + absent;
-      const rate = total > 0 ? ((present + late) / total) * 100 : 0;
-
-      setAttendanceStats({
-        present,
-        late,
-        absent,
-        rate: Math.round(rate * 10) / 10
-      });
+      calculateStats(formattedRecords);
 
     } catch (error) {
       console.error('Error fetching attendance data:', error);
@@ -120,6 +157,85 @@ export default function Attendance() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const calculateStats = (records: AttendanceRecord[]) => {
+    const present = records.filter(r => r.status === 'present').length;
+    const late = records.filter(r => r.status === 'late').length;
+    const absent = records.filter(r => r.status === 'absent').length;
+    const total = present + late + absent;
+    const rate = total > 0 ? ((present + late) / total) * 100 : 0;
+
+    setAttendanceStats({
+      present,
+      late,
+      absent,
+      rate: Math.round(rate * 10) / 10
+    });
+  };
+
+  const fetchWeeklyStats = async () => {
+    if (!selectedDate) return;
+    
+    try {
+      const weekStart = format(startOfWeek(selectedDate), 'yyyy-MM-dd');
+      const weekEnd = format(endOfWeek(selectedDate), 'yyyy-MM-dd');
+      
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('status')
+        .gte('date', weekStart)
+        .lte('date', weekEnd);
+
+      if (error) throw error;
+
+      const present = data?.filter(r => r.status === 'present').length || 0;
+      const late = data?.filter(r => r.status === 'late').length || 0;
+      const absent = data?.filter(r => r.status === 'absent').length || 0;
+      const total = present + late + absent;
+      const rate = total > 0 ? ((present + late) / total) * 100 : 0;
+
+      setWeeklyStats({
+        present,
+        late,
+        absent,
+        rate: Math.round(rate * 10) / 10
+      });
+    } catch (error) {
+      console.error('Error fetching weekly stats:', error);
+    }
+  };
+
+  const fetchMonthlyStats = async () => {
+    if (!selectedDate) return;
+    
+    try {
+      const monthStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd');
+      const monthEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd');
+      
+      const { data, error } = await supabase
+        .from('attendance')
+        .select('status')
+        .gte('date', monthStart)
+        .lte('date', monthEnd);
+
+      if (error) throw error;
+
+      const present = data?.filter(r => r.status === 'present').length || 0;
+      const late = data?.filter(r => r.status === 'late').length || 0;
+      const absent = data?.filter(r => r.status === 'absent').length || 0;
+      const total = present + late + absent;
+      const rate = total > 0 ? ((present + late) / total) * 100 : 0;
+
+      setMonthlyStats({
+        present,
+        late,
+        absent,
+        rate: Math.round(rate * 10) / 10
+      });
+    } catch (error) {
+      console.error('Error fetching monthly stats:', error);
     }
   };
 
@@ -299,7 +415,24 @@ export default function Attendance() {
                 <CardDescription>Attendance summary for this week</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Weekly attendance analytics will be displayed here.</p>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="text-center p-4 bg-business-success/10 rounded-lg">
+                    <div className="text-2xl font-bold text-business-success">{weeklyStats.present}</div>
+                    <p className="text-sm text-muted-foreground">Present</p>
+                  </div>
+                  <div className="text-center p-4 bg-business-warning/10 rounded-lg">
+                    <div className="text-2xl font-bold text-business-warning">{weeklyStats.late}</div>
+                    <p className="text-sm text-muted-foreground">Late</p>
+                  </div>
+                  <div className="text-center p-4 bg-destructive/10 rounded-lg">
+                    <div className="text-2xl font-bold text-destructive">{weeklyStats.absent}</div>
+                    <p className="text-sm text-muted-foreground">Absent</p>
+                  </div>
+                  <div className="text-center p-4 bg-primary/10 rounded-lg">
+                    <div className="text-2xl font-bold text-primary">{weeklyStats.rate}%</div>
+                    <p className="text-sm text-muted-foreground">Attendance Rate</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -311,7 +444,24 @@ export default function Attendance() {
                 <CardDescription>Attendance summary for this month</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Monthly attendance analytics will be displayed here.</p>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="text-center p-4 bg-business-success/10 rounded-lg">
+                    <div className="text-2xl font-bold text-business-success">{monthlyStats.present}</div>
+                    <p className="text-sm text-muted-foreground">Present</p>
+                  </div>
+                  <div className="text-center p-4 bg-business-warning/10 rounded-lg">
+                    <div className="text-2xl font-bold text-business-warning">{monthlyStats.late}</div>
+                    <p className="text-sm text-muted-foreground">Late</p>
+                  </div>
+                  <div className="text-center p-4 bg-destructive/10 rounded-lg">
+                    <div className="text-2xl font-bold text-destructive">{monthlyStats.absent}</div>
+                    <p className="text-sm text-muted-foreground">Absent</p>
+                  </div>
+                  <div className="text-center p-4 bg-primary/10 rounded-lg">
+                    <div className="text-2xl font-bold text-primary">{monthlyStats.rate}%</div>
+                    <p className="text-sm text-muted-foreground">Attendance Rate</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

@@ -44,6 +44,12 @@ export default function Schedules() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    activeSites: 0,
+    guardsScheduled: 0,
+    shiftsToday: 0,
+    scheduleChanges: 0
+  });
   const [loading, setLoading] = useState(true);
 
   const { toast } = useToast();
@@ -64,28 +70,72 @@ export default function Schedules() {
     try {
       setLoading(true);
       
-      const [employeesResult, customersResult, schedulesResult] = await Promise.all([
+      // Fetch employees and customers
+      const [employeesResult, customersResult] = await Promise.all([
         supabase.from("employees").select("*").eq("status", "active"),
-        supabase.from("customers").select("*").eq("status", "active"), 
-        supabase
-          .from("schedules")
-          .select(`
-            *,
-            employees(name),
-            customers(company_name)
-          `)
-          .gte("shift_date", startDate?.toISOString().split('T')[0])
-          .lte("shift_date", endDate?.toISOString().split('T')[0])
-          .order("shift_date", { ascending: true })
+        supabase.from("customers").select("*").eq("status", "active")
       ]);
 
       if (employeesResult.error) throw employeesResult.error;
       if (customersResult.error) throw customersResult.error;
-      if (schedulesResult.error) throw schedulesResult.error;
 
       setEmployees(employeesResult.data || []);
       setCustomers(customersResult.data || []);
-      setSchedules(schedulesResult.data || []);
+
+      // Fetch schedules with explicit foreign key references to avoid ambiguity
+      const schedulesResult = await supabase
+        .from("schedules")
+        .select(`
+          *,
+          employees!schedules_employee_id_fkey(name),
+          customers!fk_schedules_customer(company_name)
+        `)
+        .gte("shift_date", startDate?.toISOString().split('T')[0])
+        .lte("shift_date", endDate?.toISOString().split('T')[0])
+        .order("shift_date", { ascending: true });
+
+      if (schedulesResult.error) {
+        console.error("Schedules query error:", schedulesResult.error);
+        // Fallback query without joins if the explicit foreign key reference fails
+        const fallbackResult = await supabase
+          .from("schedules")
+          .select("*")
+          .gte("shift_date", startDate?.toISOString().split('T')[0])
+          .lte("shift_date", endDate?.toISOString().split('T')[0])
+          .order("shift_date", { ascending: true });
+        
+        if (fallbackResult.error) throw fallbackResult.error;
+        setSchedules(fallbackResult.data || []);
+      } else {
+        setSchedules(schedulesResult.data || []);
+      }
+
+      // Calculate stats
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Get today's schedules for shifts count
+      const todaySchedulesResult = await supabase
+        .from("schedules")
+        .select("*")
+        .eq("shift_date", today);
+      
+      // Count active sites (customers with active status)
+      const activeSites = customersResult.data?.length || 0;
+      
+      // Count scheduled guards (unique employees in schedules for the date range)
+      const uniqueEmployeeIds = new Set(schedulesResult.data?.map(s => s.employee_id) || []);
+      const guardsScheduled = uniqueEmployeeIds.size;
+      
+      // Count today's shifts
+      const shiftsToday = todaySchedulesResult.data?.length || 0;
+
+      setStats({
+        activeSites,
+        guardsScheduled,
+        shiftsToday,
+        scheduleChanges: 3 // This would need additional logic to track changes
+      });
+
     } catch (error) {
       console.error("Error fetching data:", error);
       toast({
@@ -156,15 +206,6 @@ export default function Schedules() {
       case "Late": return "bg-business-warning text-white";
       case "Absent": return "bg-destructive text-white";
       case "Scheduled": return "bg-primary text-white";
-      default: return "bg-muted text-muted-foreground";
-    }
-  };
-
-  const getChangeTypeColor = (type: string) => {
-    switch (type) {
-      case "Temporary": return "bg-business-warning text-white";
-      case "Permanent": return "bg-primary text-white";
-      case "Review": return "bg-business-blue text-white";
       default: return "bg-muted text-muted-foreground";
     }
   };
@@ -421,25 +462,25 @@ export default function Schedules() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-foreground">34</div>
+            <div className="text-2xl font-bold text-foreground">{stats.activeSites}</div>
             <p className="text-sm text-muted-foreground">Active Sites</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-business-success">127</div>
+            <div className="text-2xl font-bold text-business-success">{stats.guardsScheduled}</div>
             <p className="text-sm text-muted-foreground">Guards Scheduled</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-primary">45</div>
+            <div className="text-2xl font-bold text-primary">{stats.shiftsToday}</div>
             <p className="text-sm text-muted-foreground">Shifts Today</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-business-warning">3</div>
+            <div className="text-2xl font-bold text-business-warning">{stats.scheduleChanges}</div>
             <p className="text-sm text-muted-foreground">Schedule Changes</p>
           </CardContent>
         </Card>
@@ -472,6 +513,7 @@ export default function Schedules() {
                 ) : schedules.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground">No schedules found for the selected date range.</p>
+                    <p className="text-sm text-muted-foreground mt-2">Try creating a new schedule or adjusting the date range.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">

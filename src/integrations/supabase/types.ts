@@ -23,7 +23,12 @@ export type Database = {
           employee_id: string
           hours_worked: number | null
           id: string
+          is_overtime: boolean | null
           notes: string | null
+          replacement_employee_id: string | null
+          replacement_notes: string | null
+          replacement_type: string | null
+          replacement_vendor_id: string | null
           schedule_id: string | null
           status: string
           updated_at: string
@@ -36,7 +41,12 @@ export type Database = {
           employee_id: string
           hours_worked?: number | null
           id?: string
+          is_overtime?: boolean | null
           notes?: string | null
+          replacement_employee_id?: string | null
+          replacement_notes?: string | null
+          replacement_type?: string | null
+          replacement_vendor_id?: string | null
           schedule_id?: string | null
           status?: string
           updated_at?: string
@@ -49,7 +59,12 @@ export type Database = {
           employee_id?: string
           hours_worked?: number | null
           id?: string
+          is_overtime?: boolean | null
           notes?: string | null
+          replacement_employee_id?: string | null
+          replacement_notes?: string | null
+          replacement_type?: string | null
+          replacement_vendor_id?: string | null
           schedule_id?: string | null
           status?: string
           updated_at?: string
@@ -60,6 +75,20 @@ export type Database = {
             columns: ["employee_id"]
             isOneToOne: false
             referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_replacement_employee_id_fkey"
+            columns: ["replacement_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_replacement_vendor_id_fkey"
+            columns: ["replacement_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
           {

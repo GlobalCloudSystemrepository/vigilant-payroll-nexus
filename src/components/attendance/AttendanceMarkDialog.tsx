@@ -6,7 +6,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, MapPin, Clock } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CalendarIcon, MapPin, Clock, UserX } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +27,18 @@ interface ScheduledEmployee {
   schedule_id: string;
 }
 
+interface Vendor {
+  id: string;
+  company_name: string;
+  vendor_id: string;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  employee_id: string;
+}
+
 interface AttendanceMarkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -41,11 +55,18 @@ export default function AttendanceMarkDialog({
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [scheduledEmployees, setScheduledEmployees] = useState<ScheduledEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendanceData, setAttendanceData] = useState<Record<string, {
     status: string;
     checkIn: string;
     checkOut: string;
     notes: string;
+    replacementType: string;
+    replacementVendorId: string;
+    replacementEmployeeId: string;
+    replacementNotes: string;
+    isOvertime: boolean;
   }>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -53,6 +74,8 @@ export default function AttendanceMarkDialog({
   useEffect(() => {
     if (open && selectedDate) {
       fetchScheduledEmployees();
+      fetchVendors();
+      fetchEmployees();
     }
   }, [open, selectedDate]);
 
@@ -106,7 +129,12 @@ export default function AttendanceMarkDialog({
             status: att.status,
             checkIn: att.check_in_time ? format(new Date(att.check_in_time), 'HH:mm') : '',
             checkOut: att.check_out_time ? format(new Date(att.check_out_time), 'HH:mm') : '',
-            notes: att.notes || ''
+            notes: att.notes || '',
+            replacementType: att.replacement_type || '',
+            replacementVendorId: att.replacement_vendor_id || '',
+            replacementEmployeeId: att.replacement_employee_id || '',
+            replacementNotes: att.replacement_notes || '',
+            isOvertime: att.is_overtime || false
           };
         });
         setAttendanceData(attendanceMap);
@@ -123,7 +151,35 @@ export default function AttendanceMarkDialog({
     }
   };
 
-  const updateAttendance = (employeeId: string, field: string, value: string) => {
+  const fetchVendors = async () => {
+    try {
+      const { data: vendorsData, error } = await supabase
+        .from('vendors')
+        .select('id, company_name, vendor_id')
+        .eq('status', 'active');
+
+      if (error) throw error;
+      setVendors(vendorsData || []);
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const { data: employeesData, error } = await supabase
+        .from('employees')
+        .select('id, name, employee_id')
+        .eq('status', 'active');
+
+      if (error) throw error;
+      setEmployees(employeesData || []);
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    }
+  };
+
+  const updateAttendance = (employeeId: string, field: string, value: string | boolean) => {
     setAttendanceData(prev => ({
       ...prev,
       [employeeId]: {
@@ -155,7 +211,15 @@ export default function AttendanceMarkDialog({
             new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${attendance.checkOut}:00`).toISOString() : null,
           notes: attendance.notes || null,
           hours_worked: attendance.checkIn && attendance.checkOut ? 
-            calculateHoursWorked(attendance.checkIn, attendance.checkOut) : null
+            calculateHoursWorked(attendance.checkIn, attendance.checkOut) : null,
+          replacement_type: attendance.status === 'absent' ? attendance.replacementType || null : null,
+          replacement_vendor_id: attendance.status === 'absent' && attendance.replacementType === 'vendor' ? 
+            attendance.replacementVendorId || null : null,
+          replacement_employee_id: attendance.status === 'absent' && attendance.replacementType === 'employee' ? 
+            attendance.replacementEmployeeId || null : null,
+          replacement_notes: attendance.status === 'absent' ? attendance.replacementNotes || null : null,
+          is_overtime: attendance.status === 'absent' && attendance.replacementType === 'employee' ? 
+            attendance.isOvertime : false
         };
 
         const { error } = await supabase
@@ -204,7 +268,7 @@ export default function AttendanceMarkDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isBulk ? "Bulk Check-in" : "Mark Attendance"}
@@ -340,6 +404,109 @@ export default function AttendanceMarkDialog({
                       />
                     </div>
                   </div>
+
+                  {/* Replacement Section - Only show when status is absent */}
+                  {attendanceData[employee.employee_id]?.status === 'absent' && (
+                    <div className="border-t pt-4 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <UserX className="h-4 w-4 text-destructive" />
+                        <h5 className="font-medium text-destructive">Replacement Required</h5>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium">Replacement Type</label>
+                          <Select 
+                            value={attendanceData[employee.employee_id]?.replacementType || ""} 
+                            onValueChange={(value) => {
+                              updateAttendance(employee.employee_id, 'replacementType', value);
+                              // Clear other replacement fields when type changes
+                              updateAttendance(employee.employee_id, 'replacementVendorId', '');
+                              updateAttendance(employee.employee_id, 'replacementEmployeeId', '');
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select replacement type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="vendor">Vendor</SelectItem>
+                              <SelectItem value="employee">Employee</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {attendanceData[employee.employee_id]?.replacementType === 'vendor' && (
+                          <div>
+                            <label className="text-sm font-medium">Select Vendor</label>
+                            <Select 
+                              value={attendanceData[employee.employee_id]?.replacementVendorId || ""} 
+                              onValueChange={(value) => updateAttendance(employee.employee_id, 'replacementVendorId', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Choose vendor" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {vendors.map((vendor) => (
+                                  <SelectItem key={vendor.id} value={vendor.id}>
+                                    {vendor.company_name} ({vendor.vendor_id})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {attendanceData[employee.employee_id]?.replacementType === 'employee' && (
+                          <div>
+                            <label className="text-sm font-medium">Select Employee</label>
+                            <Select 
+                              value={attendanceData[employee.employee_id]?.replacementEmployeeId || ""} 
+                              onValueChange={(value) => updateAttendance(employee.employee_id, 'replacementEmployeeId', value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Choose employee" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {employees.filter(emp => emp.id !== employee.employee_id).map((emp) => (
+                                  <SelectItem key={emp.id} value={emp.id}>
+                                    {emp.name} ({emp.employee_id})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium">Replacement Notes</label>
+                          <Textarea
+                            placeholder="Enter details about the replacement..."
+                            className="resize-none"
+                            value={attendanceData[employee.employee_id]?.replacementNotes || ""}
+                            onChange={(e) => updateAttendance(employee.employee_id, 'replacementNotes', e.target.value)}
+                          />
+                        </div>
+
+                        {attendanceData[employee.employee_id]?.replacementType === 'employee' && (
+                          <div className="flex items-center space-x-2 mt-6">
+                            <Checkbox
+                              id={`overtime-${employee.employee_id}`}
+                              checked={attendanceData[employee.employee_id]?.isOvertime || false}
+                              onCheckedChange={(checked) => updateAttendance(employee.employee_id, 'isOvertime', checked as boolean)}
+                            />
+                            <label 
+                              htmlFor={`overtime-${employee.employee_id}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              This is overtime for the replacement employee
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

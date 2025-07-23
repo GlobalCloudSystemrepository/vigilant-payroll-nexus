@@ -1,102 +1,142 @@
+
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { 
   Search, Plus, Download, Upload, Filter, 
   Shield, Phone, MapPin, User, Star, Calendar, Edit, Trash2, CreditCard 
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+
+interface Vendor {
+  id: string;
+  vendor_id: string;
+  company_name: string;
+  contact_person: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  service_type: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface VendorFormData {
+  vendor_id: string;
+  company_name: string;
+  contact_person: string;
+  phone: string;
+  email: string;
+  address: string;
+  service_type: string;
+}
 
 export default function Vendors() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
 
-  const vendors = [
-    {
-      id: "VEN001",
-      name: "QuickGuard Services",
-      contactPerson: "Mr. Vikram Singh",
-      phone: "+91 98765 43220",
-      email: "vikram@quickguard.com",
-      address: "Defence Colony, Delhi",
-      guardsAvailable: 15,
-      dailyRate: 800,
-      rating: 4.8,
-      totalPayments: 350000,
-      lastPayment: "2024-01-10",
-      status: "Active"
+  const form = useForm<VendorFormData>({
+    defaultValues: {
+      vendor_id: "",
+      company_name: "",
+      contact_person: "",
+      phone: "",
+      email: "",
+      address: "",
+      service_type: "Security Services",
     },
-    {
-      id: "VEN002", 
-      name: "Elite Security Solutions",
-      contactPerson: "Ms. Kavita Joshi",
-      phone: "+91 98765 43221",
-      email: "kavita@elitesecurity.com",
-      address: "Powai, Mumbai",
-      guardsAvailable: 20,
-      dailyRate: 750,
-      rating: 4.6,
-      totalPayments: 280000,
-      lastPayment: "2024-01-08",
-      status: "Active"
+  });
+
+  // Fetch vendors from database
+  const { data: vendors = [], isLoading, error } = useQuery({
+    queryKey: ['vendors'],
+    queryFn: async () => {
+      console.log('Fetching vendors from database...');
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching vendors:', error);
+        throw error;
+      }
+      
+      console.log('Vendors fetched:', data);
+      return data as Vendor[];
     },
-    {
-      id: "VEN003",
-      name: "Reliable Guard Services",
-      contactPerson: "Mr. Suresh Kumar",
-      phone: "+91 98765 43222",
-      email: "suresh@reliableguards.com",
-      address: "Koramangala, Bangalore",
-      guardsAvailable: 12,
-      dailyRate: 700,
-      rating: 4.2,
-      totalPayments: 180000,
-      lastPayment: "2024-01-12",
-      status: "Active"
+  });
+
+  // Create vendor mutation
+  const createVendorMutation = useMutation({
+    mutationFn: async (vendorData: VendorFormData) => {
+      console.log('Creating vendor:', vendorData);
+      const { data, error } = await supabase
+        .from('vendors')
+        .insert([vendorData])
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Error creating vendor:', error);
+        throw error;
+      }
+      
+      return data;
     },
-    {
-      id: "VEN004",
-      name: "Metro Security Partners",
-      contactPerson: "Ms. Anita Mehta",
-      phone: "+91 98765 43223",
-      email: "anita@metrosecurity.com",
-      address: "Banjara Hills, Hyderabad",
-      guardsAvailable: 8,
-      dailyRate: 720,
-      rating: 3.9,
-      totalPayments: 95000,
-      lastPayment: "2024-01-05",
-      status: "Payment Due"
-    }
-  ];
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendors'] });
+      toast.success("Vendor created successfully!");
+      setIsAddDialogOpen(false);
+      form.reset();
+    },
+    onError: (error) => {
+      console.error('Failed to create vendor:', error);
+      toast.error("Failed to create vendor. Please try again.");
+    },
+  });
+
+  const onSubmit = (data: VendorFormData) => {
+    createVendorMutation.mutate(data);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Active": return "bg-business-success text-white";
-      case "Payment Due": return "bg-business-warning text-white";
-      case "Inactive": return "bg-muted text-muted-foreground";
-      case "Blacklisted": return "bg-destructive text-white";
+      case "active": return "bg-business-success text-white";
+      case "inactive": return "bg-muted text-muted-foreground";
       default: return "bg-muted text-muted-foreground";
     }
   };
 
-  const getRatingColor = (rating: number) => {
-    if (rating >= 4.5) return "text-business-success";
-    if (rating >= 4.0) return "text-business-warning";
-    return "text-destructive";
-  };
+  const filteredVendors = vendors.filter(vendor =>
+    vendor.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    vendor.vendor_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (vendor.contact_person && vendor.contact_person.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (vendor.address && vendor.address.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   const totalVendors = vendors.length;
-  const activeVendors = vendors.filter(v => v.status === "Active").length;
-  const totalGuardsPool = vendors.reduce((sum, vendor) => sum + vendor.guardsAvailable, 0);
-  const totalPayments = vendors.reduce((sum, vendor) => sum + vendor.totalPayments, 0);
+  const activeVendors = vendors.filter(v => v.status === "active").length;
 
-  const recentAssignments = [
-    { vendor: "QuickGuard Services", guards: 3, site: "Alpha Corporate", date: "Today", amount: 2400 },
-    { vendor: "Elite Security Solutions", guards: 2, site: "Beta Mall", date: "Yesterday", amount: 1500 },
-    { vendor: "Reliable Guard Services", guards: 1, site: "Gamma Residential", date: "2 days ago", amount: 700 }
-  ];
+  if (error) {
+    console.error('Error in vendors query:', error);
+    return (
+      <div className="space-y-6">
+        <div className="text-center py-8">
+          <p className="text-destructive">Error loading vendors. Please try again.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -115,10 +155,124 @@ export default function Vendors() {
             <CreditCard className="h-4 w-4 mr-2" />
             Process Payments
           </Button>
-          <Button className="bg-gradient-to-r from-primary to-primary-hover">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Vendor
-          </Button>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-primary to-primary-hover">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Vendor
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Vendor</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="vendor_id"
+                    rules={{ required: "Vendor ID is required" }}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Vendor ID</FormLabel>
+                        <FormControl>
+                          <Input placeholder="VEN001" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="company_name"
+                    rules={{ required: "Company name is required" }}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter company name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="contact_person"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Contact Person</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter contact person name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+91 98765 43210" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input placeholder="contact@vendor.com" type="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter address" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="service_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service Type</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Security Services" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={createVendorMutation.isPending}>
+                      {createVendorMutation.isPending ? "Creating..." : "Create Vendor"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -138,13 +292,13 @@ export default function Vendors() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-primary">{totalGuardsPool}</div>
+            <div className="text-2xl font-bold text-primary">-</div>
             <p className="text-sm text-muted-foreground">Guards Available</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-lg font-bold text-business-success">₹{totalPayments.toLocaleString()}</div>
+            <div className="text-lg font-bold text-business-success">-</div>
             <p className="text-sm text-muted-foreground">Total Payments</p>
           </CardContent>
         </Card>
@@ -158,18 +312,9 @@ export default function Vendors() {
             <CardDescription>Latest vendor guard deployments</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentAssignments.map((assignment, index) => (
-              <div key={index} className="p-3 rounded-lg bg-muted/30">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-medium text-sm">{assignment.vendor}</p>
-                    <p className="text-xs text-muted-foreground">{assignment.guards} guards → {assignment.site}</p>
-                    <p className="text-xs text-muted-foreground">{assignment.date}</p>
-                  </div>
-                  <p className="font-semibold text-sm">₹{assignment.amount}</p>
-                </div>
-              </div>
-            ))}
+            <div className="text-center py-4 text-muted-foreground">
+              No recent assignments
+            </div>
           </CardContent>
         </Card>
 
@@ -196,56 +341,67 @@ export default function Vendors() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {vendors.map((vendor) => (
-                  <div 
-                    key={vendor.id} 
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-business-blue-light rounded-full flex items-center justify-center">
-                        <Shield className="h-6 w-6 text-business-blue" />
+              {isLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Loading vendors...</p>
+                </div>
+              ) : filteredVendors.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    {vendors.length === 0 ? "No vendors found. Add your first vendor!" : "No vendors match your search."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredVendors.map((vendor) => (
+                    <div 
+                      key={vendor.id} 
+                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-business-blue-light rounded-full flex items-center justify-center">
+                          <Shield className="h-6 w-6 text-business-blue" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{vendor.company_name}</h3>
+                          <p className="text-sm text-muted-foreground">{vendor.vendor_id} • {vendor.contact_person || 'No contact person'}</p>
+                          <div className="flex items-center gap-4 mt-1">
+                            {vendor.phone && (
+                              <span className="flex items-center text-xs text-muted-foreground">
+                                <Phone className="h-3 w-3 mr-1" />
+                                {vendor.phone}
+                              </span>
+                            )}
+                            {vendor.address && (
+                              <span className="flex items-center text-xs text-muted-foreground">
+                                <MapPin className="h-3 w-3 mr-1" />
+                                {vendor.address}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">{vendor.name}</h3>
-                        <p className="text-sm text-muted-foreground">{vendor.id} • {vendor.contactPerson}</p>
-                        <div className="flex items-center gap-4 mt-1">
-                          <span className="flex items-center text-xs text-muted-foreground">
-                            <Phone className="h-3 w-3 mr-1" />
-                            {vendor.phone}
-                          </span>
-                          <span className="flex items-center text-xs text-muted-foreground">
-                            <MapPin className="h-3 w-3 mr-1" />
-                            {vendor.address}
-                          </span>
-                          <span className="flex items-center text-xs">
-                            <Star className={`h-3 w-3 mr-1 ${getRatingColor(vendor.rating)}`} />
-                            <span className={getRatingColor(vendor.rating)}>{vendor.rating}</span>
-                          </span>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm text-muted-foreground">{vendor.service_type || 'Security Services'}</p>
+                          <p className="text-xs text-muted-foreground">Added: {new Date(vendor.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <Badge className={getStatusColor(vendor.status)}>
+                          {vendor.status}
+                        </Badge>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <CreditCard className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="font-medium text-foreground">₹{vendor.dailyRate}/day</p>
-                        <p className="text-sm text-muted-foreground">{vendor.guardsAvailable} guards available</p>
-                        <p className="text-xs text-muted-foreground">Last paid: {vendor.lastPayment}</p>
-                      </div>
-                      <Badge className={getStatusColor(vendor.status)}>
-                        {vendor.status}
-                      </Badge>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          <CreditCard className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

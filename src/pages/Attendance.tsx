@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   UserCheck, UserX, Clock, MapPin, 
-  CheckCircle, XCircle, AlertTriangle 
+  CheckCircle, XCircle, AlertTriangle, Edit
 } from "lucide-react";
 import AttendanceMarkDialog from "@/components/attendance/AttendanceMarkDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +23,12 @@ interface AttendanceRecord {
   status: string;
   hours: string;
   date: string;
+  schedule_id: string;
+  replacement_type?: string;
+  replacement_vendor_name?: string;
+  replacement_employee_name?: string;
+  replacement_notes?: string;
+  is_overtime?: boolean;
 }
 
 interface AttendanceStats {
@@ -56,6 +61,8 @@ export default function Attendance() {
   });
   const [markDialogOpen, setMarkDialogOpen] = useState(false);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -74,7 +81,7 @@ export default function Attendance() {
     try {
       const dateStr = selectedDate.toISOString().split('T')[0];
       
-      // Fetch attendance records with employee info and schedule details
+      // Fetch attendance records with comprehensive data including replacement info
       const { data: attendance, error } = await supabase
         .from('attendance')
         .select(`
@@ -83,7 +90,9 @@ export default function Attendance() {
           schedules!attendance_schedule_id_fkey(
             location,
             customers!schedules_customer_id_fkey(company_name)
-          )
+          ),
+          replacement_vendor:vendors!attendance_replacement_vendor_id_fkey(company_name),
+          replacement_employee:employees!attendance_replacement_employee_id_fkey(name)
         `)
         .eq('date', dateStr);
 
@@ -115,7 +124,11 @@ export default function Attendance() {
             }) : '-',
           status: record.status,
           hours: record.hours_worked ? `${record.hours_worked}h` : '0h',
-          date: record.date
+          date: record.date,
+          schedule_id: record.schedule_id || '',
+          replacement_type: record.replacement_type,
+          replacement_notes: record.replacement_notes,
+          is_overtime: record.is_overtime
         })) || [];
         
         setAttendanceRecords(formattedFallback);
@@ -123,7 +136,7 @@ export default function Attendance() {
         return;
       }
 
-      // Format the data with proper relationships
+      // Format the data with proper relationships including replacement info
       const formattedRecords: AttendanceRecord[] = attendance?.map(record => ({
         id: record.id,
         employee_id: record.employee_id,
@@ -142,7 +155,13 @@ export default function Attendance() {
           }) : '-',
         status: record.status,
         hours: record.hours_worked ? `${record.hours_worked}h` : '0h',
-        date: record.date
+        date: record.date,
+        schedule_id: record.schedule_id || '',
+        replacement_type: record.replacement_type,
+        replacement_vendor_name: record.replacement_vendor?.company_name,
+        replacement_employee_name: record.replacement_employee?.name,
+        replacement_notes: record.replacement_notes,
+        is_overtime: record.is_overtime
       })) || [];
 
       setAttendanceRecords(formattedRecords);
@@ -237,6 +256,28 @@ export default function Attendance() {
     } catch (error) {
       console.error('Error fetching monthly stats:', error);
     }
+  };
+
+  const handleEditAttendance = (record: AttendanceRecord) => {
+    // Convert the record to match the expected format for editing
+    const editRecord = {
+      id: record.id,
+      employee_id: record.employee_id,
+      date: record.date,
+      status: record.status,
+      check_in_time: record.checkIn !== '-' ? `${record.date}T${record.checkIn}:00` : undefined,
+      check_out_time: record.checkOut !== '-' ? `${record.date}T${record.checkOut}:00` : undefined,
+      notes: '',
+      replacement_type: record.replacement_type,
+      replacement_vendor_id: '',
+      replacement_employee_id: '',
+      replacement_notes: record.replacement_notes,
+      is_overtime: record.is_overtime,
+      schedule_id: record.schedule_id
+    };
+    
+    setEditingRecord(editRecord);
+    setEditDialogOpen(true);
   };
 
   const getStatusIcon = (status: string) => {
@@ -363,7 +404,7 @@ export default function Attendance() {
                           <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
                             {getStatusIcon(record.status)}
                           </div>
-                          <div>
+                          <div className="flex-1">
                             <h3 className="font-semibold text-foreground">{record.employee_name}</h3>
                             <p className="text-sm text-muted-foreground">{record.employee_id}</p>
                             <div className="flex items-center gap-2 mt-1">
@@ -372,6 +413,29 @@ export default function Attendance() {
                                 {record.customer_name} - {record.location}
                               </span>
                             </div>
+                            
+                            {/* Show replacement information for absent employees */}
+                            {record.status === 'absent' && record.replacement_type && (
+                              <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
+                                <div className="flex items-center gap-1">
+                                  <UserX className="h-3 w-3 text-destructive" />
+                                  <span className="font-medium text-destructive">
+                                    Replaced by {record.replacement_type === 'vendor' ? 'Vendor' : 'Employee'}:
+                                  </span>
+                                </div>
+                                <div className="text-muted-foreground">
+                                  {record.replacement_type === 'vendor' ? record.replacement_vendor_name : record.replacement_employee_name}
+                                  {record.replacement_type === 'employee' && record.is_overtime && (
+                                    <span className="ml-2 text-business-warning">(Overtime)</span>
+                                  )}
+                                </div>
+                                {record.replacement_notes && (
+                                  <div className="text-muted-foreground mt-1">
+                                    Note: {record.replacement_notes}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                         
@@ -392,9 +456,20 @@ export default function Attendance() {
                               </div>
                             </div>
                           </div>
-                          <Badge className={getStatusColor(record.status)}>
-                            {record.status}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-2">
+                            <Badge className={getStatusColor(record.status)}>
+                              {record.status}
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditAttendance(record)}
+                              className="text-xs"
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              Edit
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -478,6 +553,12 @@ export default function Attendance() {
         open={bulkDialogOpen} 
         onOpenChange={setBulkDialogOpen}
         isBulk={true}
+        onAttendanceMarked={fetchAttendanceData}
+      />
+      <AttendanceMarkDialog 
+        open={editDialogOpen} 
+        onOpenChange={setEditDialogOpen}
+        editRecord={editingRecord}
         onAttendanceMarked={fetchAttendanceData}
       />
     </div>

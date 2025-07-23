@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -39,17 +38,35 @@ interface Employee {
   employee_id: string;
 }
 
+interface AttendanceRecord {
+  id: string;
+  employee_id: string;
+  date: string;
+  status: string;
+  check_in_time?: string;
+  check_out_time?: string;
+  notes?: string;
+  replacement_type?: string;
+  replacement_vendor_id?: string;
+  replacement_employee_id?: string;
+  replacement_notes?: string;
+  is_overtime?: boolean;
+  schedule_id: string;
+}
+
 interface AttendanceMarkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isBulk?: boolean;
+  editRecord?: AttendanceRecord;
   onAttendanceMarked?: () => void;
 }
 
 export default function AttendanceMarkDialog({ 
   open, 
   onOpenChange, 
-  isBulk = false, 
+  isBulk = false,
+  editRecord,
   onAttendanceMarked 
 }: AttendanceMarkDialogProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -71,13 +88,87 @@ export default function AttendanceMarkDialog({
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  // Set initial data when editing a record
   useEffect(() => {
-    if (open && selectedDate) {
+    if (editRecord && open) {
+      setSelectedDate(new Date(editRecord.date));
+      setSelectedEmployee(editRecord.employee_id);
+      
+      const initialData = {
+        status: editRecord.status,
+        checkIn: editRecord.check_in_time ? format(new Date(editRecord.check_in_time), 'HH:mm') : '',
+        checkOut: editRecord.check_out_time ? format(new Date(editRecord.check_out_time), 'HH:mm') : '',
+        notes: editRecord.notes || '',
+        replacementType: editRecord.replacement_type || '',
+        replacementVendorId: editRecord.replacement_vendor_id || '',
+        replacementEmployeeId: editRecord.replacement_employee_id || '',
+        replacementNotes: editRecord.replacement_notes || '',
+        isOvertime: editRecord.is_overtime || false
+      };
+      
+      setAttendanceData({ [editRecord.employee_id]: initialData });
+    }
+  }, [editRecord, open]);
+
+  useEffect(() => {
+    if (open && selectedDate && !editRecord) {
       fetchScheduledEmployees();
       fetchVendors();
       fetchEmployees();
+    } else if (open && editRecord) {
+      fetchVendors();
+      fetchEmployees();
+      fetchSingleEmployeeSchedule();
     }
-  }, [open, selectedDate]);
+  }, [open, selectedDate, editRecord]);
+
+  const fetchSingleEmployeeSchedule = async () => {
+    if (!editRecord) return;
+    
+    setIsLoading(true);
+    try {
+      const { data: schedule, error } = await supabase
+        .from('schedules')
+        .select(`
+          id,
+          employee_id,
+          customer_id,
+          shift_date,
+          start_time,
+          end_time,
+          location,
+          employees!fk_schedules_employee(name),
+          customers!fk_schedules_customer(company_name)
+        `)
+        .eq('id', editRecord.schedule_id)
+        .single();
+
+      if (error) throw error;
+
+      const employeeData = {
+        id: schedule.id,
+        employee_id: schedule.employee_id,
+        employee_name: schedule.employees?.name || 'Unknown Employee',
+        customer_name: schedule.customers?.company_name || 'Unknown Customer',
+        location: schedule.location || 'No location specified',
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
+        shift_date: schedule.shift_date,
+        schedule_id: schedule.id
+      };
+
+      setScheduledEmployees([employeeData]);
+    } catch (error) {
+      console.error('Error fetching employee schedule:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch employee schedule",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchScheduledEmployees = async () => {
     setIsLoading(true);
@@ -222,18 +313,29 @@ export default function AttendanceMarkDialog({
             attendance.isOvertime : false
         };
 
-        const { error } = await supabase
-          .from('attendance')
-          .upsert(attendanceRecord, {
-            onConflict: 'employee_id,date'
-          });
+        if (editRecord) {
+          // Update existing record
+          const { error } = await supabase
+            .from('attendance')
+            .update(attendanceRecord)
+            .eq('id', editRecord.id);
 
-        if (error) throw error;
+          if (error) throw error;
+        } else {
+          // Insert new record
+          const { error } = await supabase
+            .from('attendance')
+            .upsert(attendanceRecord, {
+              onConflict: 'employee_id,date'
+            });
+
+          if (error) throw error;
+        }
       }
 
       toast({
         title: "Success",
-        description: `Attendance ${isBulk ? 'bulk' : ''} marked successfully`,
+        description: `Attendance ${editRecord ? 'updated' : (isBulk ? 'bulk marked' : 'marked')} successfully`,
       });
       
       onOpenChange(false);
@@ -242,7 +344,7 @@ export default function AttendanceMarkDialog({
       console.error('Error marking attendance:', error);
       toast({
         title: "Error",
-        description: "Failed to mark attendance",
+        description: `Failed to ${editRecord ? 'update' : 'mark'} attendance`,
         variant: "destructive",
       });
     } finally {
@@ -271,18 +373,19 @@ export default function AttendanceMarkDialog({
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {isBulk ? "Bulk Check-in" : "Mark Attendance"}
+            {editRecord ? "Edit Attendance" : (isBulk ? "Bulk Check-in" : "Mark Attendance")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Date Selection */}
+          {/* Date Selection - Disabled in edit mode */}
           <div className="flex flex-col space-y-2">
             <label className="text-sm font-medium">Select Date</label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
+                  disabled={!!editRecord}
                   className={cn(
                     "w-[240px] justify-start text-left font-normal",
                     !selectedDate && "text-muted-foreground"
@@ -303,8 +406,8 @@ export default function AttendanceMarkDialog({
             </Popover>
           </div>
 
-          {/* Employee Selection (for single attendance) */}
-          {!isBulk && (
+          {/* Employee Selection (for single attendance) - Disabled in edit mode */}
+          {!isBulk && !editRecord && (
             <div className="flex flex-col space-y-2">
               <label className="text-sm font-medium">Select Employee</label>
               <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
@@ -326,10 +429,10 @@ export default function AttendanceMarkDialog({
           {scheduledEmployees.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">
-                Scheduled Employees ({scheduledEmployees.length})
+                {editRecord ? "Employee Schedule" : `Scheduled Employees (${scheduledEmployees.length})`}
               </h3>
               
-              {(isBulk ? scheduledEmployees : scheduledEmployees.filter(emp => emp.employee_id === selectedEmployee)).map((employee) => (
+              {(isBulk ? scheduledEmployees : scheduledEmployees.filter(emp => editRecord ? emp.employee_id === editRecord.employee_id : emp.employee_id === selectedEmployee)).map((employee) => (
                 <div key={employee.employee_id} className="border rounded-lg p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -514,7 +617,7 @@ export default function AttendanceMarkDialog({
 
           {scheduledEmployees.length === 0 && !isLoading && (
             <div className="text-center py-8 text-muted-foreground">
-              No employees scheduled for {format(selectedDate, "PPP")}
+              {editRecord ? "Unable to load employee schedule" : `No employees scheduled for ${format(selectedDate, "PPP")}`}
             </div>
           )}
 
@@ -524,9 +627,9 @@ export default function AttendanceMarkDialog({
             </Button>
             <Button 
               onClick={handleSubmit} 
-              disabled={isLoading || scheduledEmployees.length === 0 || (!isBulk && !selectedEmployee)}
+              disabled={isLoading || scheduledEmployees.length === 0 || (!isBulk && !selectedEmployee && !editRecord)}
             >
-              {isLoading ? "Saving..." : (isBulk ? "Mark Bulk Attendance" : "Mark Attendance")}
+              {isLoading ? "Saving..." : (editRecord ? "Update Attendance" : (isBulk ? "Mark Bulk Attendance" : "Mark Attendance"))}
             </Button>
           </div>
         </div>

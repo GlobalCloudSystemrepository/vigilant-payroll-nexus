@@ -400,7 +400,7 @@ export default function Attendance() {
                         key={record.id}
                         className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                       >
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4 flex-1">
                           <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
                             {getStatusIcon(record.status)}
                           </div>
@@ -439,24 +439,25 @@ export default function Attendance() {
                           </div>
                         </div>
                         
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-6">
                           <div className="text-right">
-                            <div className="flex gap-4 text-sm">
+                            <div className="grid grid-cols-3 gap-6 text-sm">
                               <div>
-                                <p className="text-muted-foreground">Check In</p>
+                                <p className="text-muted-foreground text-xs">Check In</p>
                                 <p className="font-medium">{record.checkIn}</p>
                               </div>
                               <div>
-                                <p className="text-muted-foreground">Check Out</p>
+                                <p className="text-muted-foreground text-xs">Check Out</p>
                                 <p className="font-medium">{record.checkOut}</p>
                               </div>
                               <div>
-                                <p className="text-muted-foreground">Hours</p>
+                                <p className="text-muted-foreground text-xs">Hours</p>
                                 <p className="font-medium">{record.hours}</p>
                               </div>
                             </div>
                           </div>
-                          <div className="flex flex-col items-end gap-2">
+                          
+                          <div className="flex flex-col items-center gap-2">
                             <Badge className={getStatusColor(record.status)}>
                               {record.status}
                             </Badge>
@@ -464,7 +465,7 @@ export default function Attendance() {
                               variant="outline"
                               size="sm"
                               onClick={() => handleEditAttendance(record)}
-                              className="text-xs"
+                              className="text-xs px-3 py-1 h-7"
                             >
                               <Edit className="h-3 w-3 mr-1" />
                               Edit

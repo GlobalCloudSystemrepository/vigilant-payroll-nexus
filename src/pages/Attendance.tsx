@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,8 @@ interface AttendanceStats {
 export default function Attendance() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [weeklyAttendanceRecords, setWeeklyAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [monthlyAttendanceRecords, setMonthlyAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [weeklyStats, setWeeklyStats] = useState<AttendanceStats>({
     present: 0,
     late: 0,
@@ -179,6 +182,122 @@ export default function Attendance() {
     }
   };
 
+  const fetchWeeklyAttendanceRecords = async () => {
+    if (!selectedDate) return;
+    
+    try {
+      const weekStart = format(startOfWeek(selectedDate), 'yyyy-MM-dd');
+      const weekEnd = format(endOfWeek(selectedDate), 'yyyy-MM-dd');
+      
+      const { data: attendance, error } = await supabase
+        .from('attendance')
+        .select(`
+          *,
+          employees!attendance_employee_id_fkey(name),
+          schedules!attendance_schedule_id_fkey(
+            location,
+            customers!schedules_customer_id_fkey(company_name)
+          ),
+          replacement_vendor:vendors!attendance_replacement_vendor_id_fkey(company_name),
+          replacement_employee:employees!attendance_replacement_employee_id_fkey(name)
+        `)
+        .gte('date', weekStart)
+        .lte('date', weekEnd)
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedRecords: AttendanceRecord[] = attendance?.map(record => ({
+        id: record.id,
+        employee_id: record.employee_id,
+        employee_name: record.employees?.name || 'Unknown Employee',
+        customer_name: record.schedules?.customers?.company_name || 'Unknown Customer',
+        location: record.schedules?.location || 'No location',
+        checkIn: record.check_in_time ? 
+          new Date(record.check_in_time).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }) : '-',
+        checkOut: record.check_out_time ? 
+          new Date(record.check_out_time).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }) : '-',
+        status: record.status,
+        hours: record.hours_worked ? `${record.hours_worked}h` : '0h',
+        date: record.date,
+        schedule_id: record.schedule_id || '',
+        replacement_type: record.replacement_type,
+        replacement_vendor_name: record.replacement_vendor?.company_name,
+        replacement_employee_name: record.replacement_employee?.name,
+        replacement_notes: record.replacement_notes,
+        is_overtime: record.is_overtime
+      })) || [];
+
+      setWeeklyAttendanceRecords(formattedRecords);
+    } catch (error) {
+      console.error('Error fetching weekly attendance records:', error);
+    }
+  };
+
+  const fetchMonthlyAttendanceRecords = async () => {
+    if (!selectedDate) return;
+    
+    try {
+      const monthStart = format(startOfMonth(selectedDate), 'yyyy-MM-dd');
+      const monthEnd = format(endOfMonth(selectedDate), 'yyyy-MM-dd');
+      
+      const { data: attendance, error } = await supabase
+        .from('attendance')
+        .select(`
+          *,
+          employees!attendance_employee_id_fkey(name),
+          schedules!attendance_schedule_id_fkey(
+            location,
+            customers!schedules_customer_id_fkey(company_name)
+          ),
+          replacement_vendor:vendors!attendance_replacement_vendor_id_fkey(company_name),
+          replacement_employee:employees!attendance_replacement_employee_id_fkey(name)
+        `)
+        .gte('date', monthStart)
+        .lte('date', monthEnd)
+        .order('date', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedRecords: AttendanceRecord[] = attendance?.map(record => ({
+        id: record.id,
+        employee_id: record.employee_id,
+        employee_name: record.employees?.name || 'Unknown Employee',
+        customer_name: record.schedules?.customers?.company_name || 'Unknown Customer',
+        location: record.schedules?.location || 'No location',
+        checkIn: record.check_in_time ? 
+          new Date(record.check_in_time).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }) : '-',
+        checkOut: record.check_out_time ? 
+          new Date(record.check_out_time).toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }) : '-',
+        status: record.status,
+        hours: record.hours_worked ? `${record.hours_worked}h` : '0h',
+        date: record.date,
+        schedule_id: record.schedule_id || '',
+        replacement_type: record.replacement_type,
+        replacement_vendor_name: record.replacement_vendor?.company_name,
+        replacement_employee_name: record.replacement_employee?.name,
+        replacement_notes: record.replacement_notes,
+        is_overtime: record.is_overtime
+      })) || [];
+
+      setMonthlyAttendanceRecords(formattedRecords);
+    } catch (error) {
+      console.error('Error fetching monthly attendance records:', error);
+    }
+  };
+
   const calculateStats = (records: AttendanceRecord[]) => {
     const present = records.filter(r => r.status === 'present').length;
     const late = records.filter(r => r.status === 'late').length;
@@ -221,6 +340,9 @@ export default function Attendance() {
         absent,
         rate: Math.round(rate * 10) / 10
       });
+
+      // Fetch weekly records after stats
+      fetchWeeklyAttendanceRecords();
     } catch (error) {
       console.error('Error fetching weekly stats:', error);
     }
@@ -253,6 +375,9 @@ export default function Attendance() {
         absent,
         rate: Math.round(rate * 10) / 10
       });
+
+      // Fetch monthly records after stats
+      fetchMonthlyAttendanceRecords();
     } catch (error) {
       console.error('Error fetching monthly stats:', error);
     }
@@ -280,6 +405,12 @@ export default function Attendance() {
     setEditDialogOpen(true);
   };
 
+  const handleAttendanceUpdated = () => {
+    fetchAttendanceData();
+    fetchWeeklyStats();
+    fetchMonthlyStats();
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "present": return <CheckCircle className="h-4 w-4 text-business-success" />;
@@ -297,6 +428,106 @@ export default function Attendance() {
       default: return "bg-muted text-muted-foreground";
     }
   };
+
+  const renderAttendanceRecords = (records: AttendanceRecord[], title: string) => (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {records.length > 0 ? (
+          <div className="space-y-4">
+            {records.map((record) => (
+              <div 
+                key={record.id}
+                className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                    {getStatusIcon(record.status)}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-foreground">{record.employee_name}</h3>
+                    <p className="text-sm text-muted-foreground">{record.employee_id}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">
+                        {record.customer_name} - {record.location}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Date: {new Date(record.date).toLocaleDateString()}
+                    </div>
+                    
+                    {/* Show replacement information for absent employees */}
+                    {record.status === 'absent' && record.replacement_type && (
+                      <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
+                        <div className="flex items-center gap-1">
+                          <UserX className="h-3 w-3 text-destructive" />
+                          <span className="font-medium text-destructive">
+                            Replaced by {record.replacement_type === 'vendor' ? 'Vendor' : 'Employee'}:
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          {record.replacement_type === 'vendor' ? record.replacement_vendor_name : record.replacement_employee_name}
+                          {record.replacement_type === 'employee' && record.is_overtime && (
+                            <span className="ml-2 text-business-warning">(Overtime)</span>
+                          )}
+                        </div>
+                        {record.replacement_notes && (
+                          <div className="text-muted-foreground mt-1">
+                            Note: {record.replacement_notes}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <div className="grid grid-cols-3 gap-6 text-sm">
+                      <div>
+                        <p className="text-muted-foreground text-xs">Check In</p>
+                        <p className="font-medium">{record.checkIn}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">Check Out</p>
+                        <p className="font-medium">{record.checkOut}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">Hours</p>
+                        <p className="font-medium">{record.hours}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col items-center gap-2">
+                    <Badge className={getStatusColor(record.status)}>
+                      {record.status}
+                    </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditAttendance(record)}
+                      className="text-xs px-3 py-1 h-7"
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            No attendance records found for this period
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-6">
@@ -376,115 +607,10 @@ export default function Attendance() {
           </TabsList>
 
           <TabsContent value="today" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Attendance Records</CardTitle>
-                <CardDescription>
-                  {selectedDate?.toLocaleDateString('en-US', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex justify-center py-8">
-                    <div className="text-muted-foreground">Loading attendance records...</div>
-                  </div>
-                ) : attendanceRecords.length > 0 ? (
-                  <div className="space-y-4">
-                    {attendanceRecords.map((record) => (
-                      <div 
-                        key={record.id}
-                        className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-4 flex-1">
-                          <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                            {getStatusIcon(record.status)}
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-foreground">{record.employee_name}</h3>
-                            <p className="text-sm text-muted-foreground">{record.employee_id}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <MapPin className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">
-                                {record.customer_name} - {record.location}
-                              </span>
-                            </div>
-                            
-                            {/* Show replacement information for absent employees */}
-                            {record.status === 'absent' && record.replacement_type && (
-                              <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
-                                <div className="flex items-center gap-1">
-                                  <UserX className="h-3 w-3 text-destructive" />
-                                  <span className="font-medium text-destructive">
-                                    Replaced by {record.replacement_type === 'vendor' ? 'Vendor' : 'Employee'}:
-                                  </span>
-                                </div>
-                                <div className="text-muted-foreground">
-                                  {record.replacement_type === 'vendor' ? record.replacement_vendor_name : record.replacement_employee_name}
-                                  {record.replacement_type === 'employee' && record.is_overtime && (
-                                    <span className="ml-2 text-business-warning">(Overtime)</span>
-                                  )}
-                                </div>
-                                {record.replacement_notes && (
-                                  <div className="text-muted-foreground mt-1">
-                                    Note: {record.replacement_notes}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-6">
-                          <div className="text-right">
-                            <div className="grid grid-cols-3 gap-6 text-sm">
-                              <div>
-                                <p className="text-muted-foreground text-xs">Check In</p>
-                                <p className="font-medium">{record.checkIn}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground text-xs">Check Out</p>
-                                <p className="font-medium">{record.checkOut}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground text-xs">Hours</p>
-                                <p className="font-medium">{record.hours}</p>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex flex-col items-center gap-2">
-                            <Badge className={getStatusColor(record.status)}>
-                              {record.status}
-                            </Badge>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditAttendance(record)}
-                              className="text-xs px-3 py-1 h-7"
-                            >
-                              <Edit className="h-3 w-3 mr-1" />
-                              Edit
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No attendance records found for this date
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {renderAttendanceRecords(attendanceRecords, "Today's Attendance Records")}
           </TabsContent>
 
-          <TabsContent value="weekly">
+          <TabsContent value="weekly" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Weekly Overview</CardTitle>
@@ -511,9 +637,12 @@ export default function Attendance() {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Weekly Attendance Records */}
+            {renderAttendanceRecords(weeklyAttendanceRecords, "Weekly Attendance Records")}
           </TabsContent>
 
-          <TabsContent value="monthly">
+          <TabsContent value="monthly" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Monthly Overview</CardTitle>
@@ -540,6 +669,9 @@ export default function Attendance() {
                 </div>
               </CardContent>
             </Card>
+            
+            {/* Monthly Attendance Records */}
+            {renderAttendanceRecords(monthlyAttendanceRecords, "Monthly Attendance Records")}
           </TabsContent>
         </Tabs>
       </div>
@@ -548,19 +680,19 @@ export default function Attendance() {
       <AttendanceMarkDialog 
         open={markDialogOpen} 
         onOpenChange={setMarkDialogOpen}
-        onAttendanceMarked={fetchAttendanceData}
+        onAttendanceMarked={handleAttendanceUpdated}
       />
       <AttendanceMarkDialog 
         open={bulkDialogOpen} 
         onOpenChange={setBulkDialogOpen}
         isBulk={true}
-        onAttendanceMarked={fetchAttendanceData}
+        onAttendanceMarked={handleAttendanceUpdated}
       />
       <AttendanceMarkDialog 
         open={editDialogOpen} 
         onOpenChange={setEditDialogOpen}
         editRecord={editingRecord}
-        onAttendanceMarked={fetchAttendanceData}
+        onAttendanceMarked={handleAttendanceUpdated}
       />
     </div>
   );

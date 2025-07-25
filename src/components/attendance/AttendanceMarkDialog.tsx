@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -88,6 +89,20 @@ export default function AttendanceMarkDialog({
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  // Helper function to safely format time
+  const formatTime = (timeString?: string): string => {
+    if (!timeString) return '';
+    
+    try {
+      const date = new Date(timeString);
+      if (isNaN(date.getTime())) return '';
+      return format(date, 'HH:mm');
+    } catch (error) {
+      console.error('Error formatting time:', error);
+      return '';
+    }
+  };
+
   // Set initial data when editing a record
   useEffect(() => {
     if (editRecord && open) {
@@ -96,8 +111,8 @@ export default function AttendanceMarkDialog({
       
       const initialData = {
         status: editRecord.status,
-        checkIn: editRecord.check_in_time ? format(new Date(editRecord.check_in_time), 'HH:mm') : '',
-        checkOut: editRecord.check_out_time ? format(new Date(editRecord.check_out_time), 'HH:mm') : '',
+        checkIn: formatTime(editRecord.check_in_time),
+        checkOut: formatTime(editRecord.check_out_time),
         notes: editRecord.notes || '',
         replacementType: editRecord.replacement_type || '',
         replacementVendorId: editRecord.replacement_vendor_id || '',
@@ -218,8 +233,8 @@ export default function AttendanceMarkDialog({
         attendance?.forEach(att => {
           attendanceMap[att.employee_id] = {
             status: att.status,
-            checkIn: att.check_in_time ? format(new Date(att.check_in_time), 'HH:mm') : '',
-            checkOut: att.check_out_time ? format(new Date(att.check_out_time), 'HH:mm') : '',
+            checkIn: formatTime(att.check_in_time),
+            checkOut: formatTime(att.check_out_time),
             notes: att.notes || '',
             replacementType: att.replacement_type || '',
             replacementVendorId: att.replacement_vendor_id || '',

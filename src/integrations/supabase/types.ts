@@ -107,6 +107,48 @@ export type Database = {
           },
         ]
       }
+      cash_advances: {
+        Row: {
+          amount: number
+          approved_by: string | null
+          created_at: string
+          date_approved: string | null
+          date_requested: string
+          employee_id: string
+          id: string
+          notes: string | null
+          reason: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          approved_by?: string | null
+          created_at?: string
+          date_approved?: string | null
+          date_requested: string
+          employee_id: string
+          id?: string
+          notes?: string | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          approved_by?: string | null
+          created_at?: string
+          date_approved?: string | null
+          date_requested?: string
+          employee_id?: string
+          id?: string
+          notes?: string | null
+          reason?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null

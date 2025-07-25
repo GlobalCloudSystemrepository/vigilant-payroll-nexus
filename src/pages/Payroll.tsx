@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,8 @@ import {
   DollarSign, CreditCard, TrendingDown, TrendingUp,
   Calendar, User, AlertCircle, CheckCircle
 } from "lucide-react";
+import LogVendorPaymentForm from "@/components/payroll/LogVendorPaymentForm";
+import LogCashAdvanceForm from "@/components/payroll/LogCashAdvanceForm";
 
 export default function Payroll() {
   const [selectedMonth, setSelectedMonth] = useState("2024-01");
@@ -123,10 +126,8 @@ export default function Payroll() {
             <Calendar className="h-4 w-4 mr-2" />
             Generate Report
           </Button>
-          <Button className="bg-gradient-to-r from-primary to-primary-hover">
-            <CreditCard className="h-4 w-4 mr-2" />
-            Process Payroll
-          </Button>
+          <LogVendorPaymentForm />
+          <LogCashAdvanceForm />
         </div>
       </div>
 

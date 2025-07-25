@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -69,17 +68,29 @@ export default function LogVendorPaymentForm() {
 
   const createVendorPayment = useMutation({
     mutationFn: async (data: VendorPaymentFormData) => {
-      const { error } = await supabase
-        .from('vendor_payments')
-        .insert([{
-          vendor_id: data.vendor_id,
-          customer_id: data.customer_id,
-          amount: data.amount,
-          payment_date: data.payment_date,
-          notes: data.notes,
-        }]);
+      // Use raw SQL to insert into vendor_payments table
+      const { error } = await supabase.rpc('insert_vendor_payment', {
+        p_vendor_id: data.vendor_id,
+        p_customer_id: data.customer_id,
+        p_amount: data.amount,
+        p_payment_date: data.payment_date,
+        p_notes: data.notes || null,
+      });
       
-      if (error) throw error;
+      if (error) {
+        // Fallback: try direct SQL query
+        const { error: directError } = await supabase
+          .from('vendor_payments')
+          .insert({
+            vendor_id: data.vendor_id,
+            customer_id: data.customer_id,
+            amount: data.amount,
+            payment_date: data.payment_date,
+            notes: data.notes,
+          });
+        
+        if (directError) throw directError;
+      }
     },
     onSuccess: () => {
       toast.success("Vendor payment logged successfully!");

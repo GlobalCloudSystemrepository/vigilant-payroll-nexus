@@ -1,76 +1,69 @@
 
-import React from "react";
-import { useLocation, Link } from "react-router-dom";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import {
-  Users,
-  Calendar,
-  ClipboardList,
-  DollarSign,
-  BarChart3,
-  Building,
-  Truck,
-  User,
-  Menu,
-} from "lucide-react";
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { 
+  Home, 
+  Users, 
+  Building2, 
+  Truck, 
+  Calendar, 
+  Clock, 
+  DollarSign, 
+  FileText,
+  User
+} from 'lucide-react';
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: BarChart3 },
-  { name: "Employees", href: "/employees", icon: Users },
-  { name: "Employee 360", href: "/employee360", icon: User },
-  { name: "Customers", href: "/customers", icon: Building },
-  { name: "Vendors", href: "/vendors", icon: Truck },
-  { name: "Schedules", href: "/schedules", icon: Calendar },
-  { name: "Attendance", href: "/attendance", icon: ClipboardList },
-  { name: "Payroll", href: "/payroll", icon: DollarSign },
-  { name: "Reports", href: "/reports", icon: BarChart3 },
+const menuItems = [
+  { href: '/', label: 'Home', icon: Home },
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/employees', label: 'Employees', icon: Users },
+  { href: '/employee360', label: 'Employee 360', icon: User },
+  { href: '/customers', label: 'Customers', icon: Building2 },
+  { href: '/vendors', label: 'Vendors', icon: Truck },
+  { href: '/schedules', label: 'Schedules', icon: Calendar },
+  { href: '/attendance', label: 'Attendance', icon: Clock },
+  { href: '/payroll', label: 'Payroll', icon: DollarSign },
+  { href: '/reports', label: 'Reports', icon: FileText },
 ];
 
-const AppSidebar: React.FC = () => {
+export default function AppSidebar() {
   const location = useLocation();
-  const pathname = location.pathname;
 
   return (
-    <Sidebar>
-      <SidebarTrigger className="m-2 self-end" />
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Main Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navigation.map((item) => (
-                <SidebarMenuItem key={item.name}>
-                  <SidebarMenuButton asChild>
-                    <Link 
-                      to={item.href}
-                      className={`flex items-center gap-2 ${
-                        pathname === item.href 
-                          ? "bg-muted text-primary font-medium" 
-                          : "hover:bg-muted/50"
-                      }`}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
+    <div className="w-64 bg-white shadow-md">
+      <div className="p-4">
+        <h2 className="text-xl font-semibold text-gray-800">Security Management</h2>
+      </div>
+      <nav className="mt-8">
+        <div className="px-2 space-y-1">
+          {menuItems.map((item) => {
+            const isActive = location.pathname === item.href;
+            const Icon = item.icon;
+            
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                className={`
+                  group flex items-center px-2 py-2 text-sm font-medium rounded-md
+                  ${isActive 
+                    ? 'bg-gray-100 text-gray-900' 
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }
+                `}
+              >
+                <Icon
+                  className={`
+                    mr-3 h-5 w-5 flex-shrink-0
+                    ${isActive ? 'text-gray-500' : 'text-gray-400 group-hover:text-gray-500'}
+                  `}
+                />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
   );
-};
-
-export default AppSidebar;
+}

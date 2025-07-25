@@ -20,7 +20,7 @@ const EmployeeScheduleTable = ({ employeeId, startDate, endDate }: EmployeeSched
         .from('schedules')
         .select(`
           *,
-          customer:customers!schedules_customer_id_fkey (
+          customers (
             company_name,
             customer_id
           )
@@ -78,10 +78,10 @@ const EmployeeScheduleTable = ({ employeeId, startDate, endDate }: EmployeeSched
             <TableRow key={schedule.id}>
               <TableCell>{format(new Date(schedule.shift_date), 'MMM dd, yyyy')}</TableCell>
               <TableCell>
-                {schedule.customer?.company_name || 'N/A'}
+                {schedule.customers?.company_name || 'N/A'}
                 <br />
                 <small className="text-muted-foreground">
-                  {schedule.customer?.customer_id || ''}
+                  {schedule.customers?.customer_id || ''}
                 </small>
               </TableCell>
               <TableCell>{schedule.location || 'N/A'}</TableCell>

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import {
   FileText, Download, TrendingUp, TrendingDown, 
   DollarSign, Users, Calendar, BarChart3, PieChart, Filter 
 } from "lucide-react";
+import AttendanceReport from "@/components/reports/AttendanceReport";
 
 export default function Reports() {
   const [selectedPeriod, setSelectedPeriod] = useState("monthly");
@@ -118,9 +120,10 @@ export default function Reports() {
 
       {/* Main Analytics */}
       <Tabs defaultValue="financial" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="financial">Financial</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="attendance-report">Detailed Attendance</TabsTrigger>
           <TabsTrigger value="customer">Customer</TabsTrigger>
           <TabsTrigger value="vendor">Vendor</TabsTrigger>
         </TabsList>
@@ -176,7 +179,6 @@ export default function Reports() {
             </Card>
           </div>
 
-          {/* Monthly Trends */}
           <Card>
             <CardHeader>
               <CardTitle>Monthly Financial Trends</CardTitle>
@@ -236,6 +238,11 @@ export default function Reports() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* New Detailed Attendance Report */}
+        <TabsContent value="attendance-report" className="space-y-6">
+          <AttendanceReport />
         </TabsContent>
 
         {/* Customer Analytics */}

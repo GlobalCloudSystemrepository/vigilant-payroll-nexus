@@ -1,8 +1,8 @@
-import { useState } from "react";
+
 import { Outlet } from "react-router-dom";
-import { AppSidebar } from "./AppSidebar";
+import AppSidebar from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 export function AppLayout() {
   return (

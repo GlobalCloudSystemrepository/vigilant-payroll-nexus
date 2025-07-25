@@ -1,6 +1,8 @@
+
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
-import AppLayout from "./components/layouts/AppLayout";
+import { AppLayout } from "./components/layouts/AppLayout";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
@@ -11,13 +13,13 @@ import Attendance from "./pages/Attendance";
 import Payroll from "./pages/Payroll";
 import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
-import { QueryClient } from "@tanstack/react-query";
-
 import Employee360 from "./pages/Employee360";
+
+const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClient>
+    <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<AppLayout />}>
@@ -36,7 +38,7 @@ function App() {
         </Routes>
         <Toaster />
       </BrowserRouter>
-    </QueryClient>
+    </QueryClientProvider>
   );
 }
 

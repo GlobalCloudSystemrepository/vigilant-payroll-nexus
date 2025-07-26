@@ -20,7 +20,7 @@ const EmployeeScheduleTable = ({ employeeId, startDate, endDate }: EmployeeSched
         .from('schedules')
         .select(`
           *,
-          customers!customer_id (
+          customers!schedules_customer_id_fkey (
             company_name,
             customer_id
           )

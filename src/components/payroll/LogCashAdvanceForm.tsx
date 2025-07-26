@@ -17,7 +17,6 @@ const cashAdvanceSchema = z.object({
   employee_id: z.string().min(1, "Employee is required"),
   amount: z.number().min(0.01, "Amount must be greater than 0"),
   date_requested: z.string().min(1, "Date is required"),
-  deduction_month: z.string().min(1, "Deduction month is required"),
   reason: z.string().min(1, "Reason is required"),
   notes: z.string().optional(),
 });
@@ -34,7 +33,6 @@ export default function LogCashAdvanceForm() {
       employee_id: "",
       amount: 0,
       date_requested: "",
-      deduction_month: "",
       reason: "",
       notes: "",
     },
@@ -62,7 +60,6 @@ export default function LogCashAdvanceForm() {
           employee_id: data.employee_id,
           amount: data.amount,
           date_requested: data.date_requested,
-          deduction_month: data.deduction_month,
           reason: data.reason,
           notes: data.notes,
           status: 'approved', // Auto-approve since it's being logged directly
@@ -84,21 +81,6 @@ export default function LogCashAdvanceForm() {
 
   const onSubmit = (data: CashAdvanceFormData) => {
     createCashAdvance.mutate(data);
-  };
-
-  // Generate month options for the next 12 months
-  const generateMonthOptions = () => {
-    const months = [];
-    const currentDate = new Date();
-    
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1);
-      const value = date.toISOString().slice(0, 7); // YYYY-MM format
-      const label = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-      months.push({ value, label });
-    }
-    
-    return months;
   };
 
   return (
@@ -169,31 +151,6 @@ export default function LogCashAdvanceForm() {
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="deduction_month"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Deduction Month</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select month for deduction" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {generateMonthOptions().map((month) => (
-                        <SelectItem key={month.value} value={month.value}>
-                          {month.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

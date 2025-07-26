@@ -16,7 +16,7 @@ export function AppHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-4">
-          <SidebarTrigger className="md:hidden" />
+          <SidebarTrigger />
           <div className="hidden md:flex items-center gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />

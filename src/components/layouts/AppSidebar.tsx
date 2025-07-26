@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { 
   Home, 
   Users, 
@@ -12,6 +12,17 @@ import {
   FileText,
   User
 } from 'lucide-react';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '@/components/ui/sidebar';
 
 const menuItems = [
   { href: '/', label: 'Home', icon: Home },
@@ -27,43 +38,40 @@ const menuItems = [
 ];
 
 export default function AppSidebar() {
+  const { state } = useSidebar();
   const location = useLocation();
+  const currentPath = location.pathname;
+  const isCollapsed = state === "collapsed";
+
+  const isActive = (path: string) => currentPath === path;
+  const getNavCls = ({ isActive }: { isActive: boolean }) =>
+    isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50";
 
   return (
-    <div className="w-64 bg-white shadow-md">
-      <div className="p-4">
-        <h2 className="text-xl font-semibold text-gray-800">Security Management</h2>
-      </div>
-      <nav className="mt-8">
-        <div className="px-2 space-y-1">
-          {menuItems.map((item) => {
-            const isActive = location.pathname === item.href;
-            const Icon = item.icon;
-            
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                className={`
-                  group flex items-center px-2 py-2 text-sm font-medium rounded-md
-                  ${isActive 
-                    ? 'bg-gray-100 text-gray-900' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }
-                `}
-              >
-                <Icon
-                  className={`
-                    mr-3 h-5 w-5 flex-shrink-0
-                    ${isActive ? 'text-gray-500' : 'text-gray-400 group-hover:text-gray-500'}
-                  `}
-                />
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      </nav>
-    </div>
+    <Sidebar className={isCollapsed ? "w-14" : "w-60"} collapsible="icon">
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Security Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild>
+                    <NavLink 
+                      to={item.href} 
+                      end 
+                      className={getNavCls}
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!isCollapsed && <span>{item.label}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
   );
 }

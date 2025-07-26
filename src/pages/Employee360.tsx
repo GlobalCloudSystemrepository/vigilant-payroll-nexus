@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import EmployeeScheduleTable from '@/components/employee360/EmployeeScheduleTable';
+import EmployeeAttendanceTable from '@/components/employee360/EmployeeAttendanceTable';
 import EmployeeOvertimeTable from '@/components/employee360/EmployeeOvertimeTable';
 import EmployeeCashAdvancesTable from '@/components/employee360/EmployeeCashAdvancesTable';
 
@@ -146,6 +147,20 @@ const Employee360 = () => {
             </CardHeader>
             <CardContent>
               <EmployeeScheduleTable 
+                employeeId={selectedEmployeeId}
+                startDate={startDate}
+                endDate={endDate}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Attendance Records */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Attendance Records</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EmployeeAttendanceTable 
                 employeeId={selectedEmployeeId}
                 startDate={startDate}
                 endDate={endDate}

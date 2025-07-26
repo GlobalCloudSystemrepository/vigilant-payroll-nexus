@@ -25,7 +25,6 @@ import {
 } from '@/components/ui/sidebar';
 
 const menuItems = [
-  { href: '/', label: 'Home', icon: Home },
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/employees', label: 'Employees', icon: Users },
   { href: '/employee360', label: 'Employee 360', icon: User },

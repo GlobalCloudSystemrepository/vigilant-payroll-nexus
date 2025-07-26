@@ -68,29 +68,17 @@ export default function LogVendorPaymentForm() {
 
   const createVendorPayment = useMutation({
     mutationFn: async (data: VendorPaymentFormData) => {
-      // Use raw SQL to insert into vendor_payments table
-      const { error } = await supabase.rpc('insert_vendor_payment', {
-        p_vendor_id: data.vendor_id,
-        p_customer_id: data.customer_id,
-        p_amount: data.amount,
-        p_payment_date: data.payment_date,
-        p_notes: data.notes || null,
-      });
+      const { error } = await supabase
+        .from('vendor_payments')
+        .insert({
+          vendor_id: data.vendor_id,
+          customer_id: data.customer_id,
+          amount: data.amount,
+          payment_date: data.payment_date,
+          notes: data.notes || null,
+        });
       
-      if (error) {
-        // Fallback: try direct SQL query
-        const { error: directError } = await supabase
-          .from('vendor_payments')
-          .insert({
-            vendor_id: data.vendor_id,
-            customer_id: data.customer_id,
-            amount: data.amount,
-            payment_date: data.payment_date,
-            notes: data.notes,
-          });
-        
-        if (directError) throw directError;
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Vendor payment logged successfully!");

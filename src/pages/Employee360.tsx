@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import EmployeeScheduleTable from '@/components/employee360/EmployeeScheduleTable';
 import EmployeeAttendanceTable from '@/components/employee360/EmployeeAttendanceTable';
+import EmployeeAttendanceSummary from '@/components/employee360/EmployeeAttendanceSummary';
 import EmployeeOvertimeTable from '@/components/employee360/EmployeeOvertimeTable';
 import EmployeeCashAdvancesTable from '@/components/employee360/EmployeeCashAdvancesTable';
 
@@ -139,6 +140,13 @@ const Employee360 = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Attendance Summary */}
+          <EmployeeAttendanceSummary 
+            employeeId={selectedEmployeeId}
+            startDate={startDate}
+            endDate={endDate}
+          />
 
           {/* Current Schedules */}
           <Card>

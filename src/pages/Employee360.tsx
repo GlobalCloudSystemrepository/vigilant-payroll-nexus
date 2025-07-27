@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CalendarIcon, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import EmployeeScheduleTable from '@/components/employee360/EmployeeScheduleTable';
 import EmployeeAttendanceTable from '@/components/employee360/EmployeeAttendanceTable';
 import EmployeeAttendanceSummary from '@/components/employee360/EmployeeAttendanceSummary';
@@ -17,8 +17,8 @@ import EmployeeCashAdvancesTable from '@/components/employee360/EmployeeCashAdva
 
 const Employee360 = () => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
-  const [startDate, setStartDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [startDate, setStartDate] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [employeeIdFilter, setEmployeeIdFilter] = useState<string>('');
 
   const { data: employees } = useQuery({

@@ -9,6 +9,7 @@ import {
   CheckCircle, XCircle, AlertTriangle, Edit
 } from "lucide-react";
 import AttendanceMarkDialog from "@/components/attendance/AttendanceMarkDialog";
+import LogOvertimeDialog from "@/components/attendance/LogOvertimeDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
@@ -65,6 +66,7 @@ export default function Attendance() {
   const [markDialogOpen, setMarkDialogOpen] = useState(false);
   const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [overtimeDialogOpen, setOvertimeDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -538,6 +540,14 @@ export default function Attendance() {
           <p className="text-muted-foreground">Track daily attendance and working hours</p>
         </div>
         <div className="flex gap-3">
+          <Button 
+            variant="outline" 
+            onClick={() => setOvertimeDialogOpen(true)}
+            className="border-orange-200 text-orange-700 hover:bg-orange-50"
+          >
+            <Clock className="h-4 w-4 mr-2" />
+            Log Overtime
+          </Button>
           <Button variant="outline" onClick={() => setBulkDialogOpen(true)}>
             <UserCheck className="h-4 w-4 mr-2" />
             Bulk Check-in
@@ -693,6 +703,11 @@ export default function Attendance() {
         onOpenChange={setEditDialogOpen}
         editRecord={editingRecord}
         onAttendanceMarked={handleAttendanceUpdated}
+      />
+      <LogOvertimeDialog 
+        open={overtimeDialogOpen} 
+        onOpenChange={setOvertimeDialogOpen}
+        onOvertimeLogged={handleAttendanceUpdated}
       />
     </div>
   );

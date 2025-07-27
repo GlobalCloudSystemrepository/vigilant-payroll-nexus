@@ -85,6 +85,7 @@ export default function AttendanceMarkDialog({
     replacementEmployeeId: string;
     replacementNotes: string;
     isOvertime: boolean;
+    vendorCost: string;
   }>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -118,7 +119,8 @@ export default function AttendanceMarkDialog({
         replacementVendorId: editRecord.replacement_vendor_id || '',
         replacementEmployeeId: editRecord.replacement_employee_id || '',
         replacementNotes: editRecord.replacement_notes || '',
-        isOvertime: editRecord.is_overtime || false
+        isOvertime: editRecord.is_overtime || false,
+        vendorCost: ''
       };
       
       setAttendanceData({ [editRecord.employee_id]: initialData });
@@ -240,7 +242,8 @@ export default function AttendanceMarkDialog({
             replacementVendorId: att.replacement_vendor_id || '',
             replacementEmployeeId: att.replacement_employee_id || '',
             replacementNotes: att.replacement_notes || '',
-            isOvertime: att.is_overtime || false
+            isOvertime: att.is_overtime || false,
+            vendorCost: ''
           };
         });
         setAttendanceData(attendanceMap);
@@ -345,6 +348,46 @@ export default function AttendanceMarkDialog({
             });
 
           if (error) throw error;
+        }
+
+        // Create vendor payment record if vendor replacement is selected and cost is provided
+        if (attendance.status === 'absent' && 
+            attendance.replacementType === 'vendor' && 
+            attendance.replacementVendorId && 
+            attendance.vendorCost && 
+            parseFloat(attendance.vendorCost) > 0) {
+          
+          // Get customer_id from the schedule
+          const { data: schedule, error: scheduleError } = await supabase
+            .from('schedules')
+            .select('customer_id')
+            .eq('id', employee.schedule_id)
+            .single();
+
+          if (scheduleError) {
+            console.error('Error fetching schedule for vendor payment:', scheduleError);
+          } else if (schedule?.customer_id) {
+            const vendorPayment = {
+              vendor_id: attendance.replacementVendorId,
+              customer_id: schedule.customer_id,
+              amount: parseFloat(attendance.vendorCost),
+              payment_date: format(selectedDate, 'yyyy-MM-dd'),
+              notes: `Replacement for ${employee.employee_name} - ${attendance.replacementNotes || 'No additional notes'}`
+            };
+
+            const { error: paymentError } = await supabase
+              .from('vendor_payments')
+              .insert(vendorPayment);
+
+            if (paymentError) {
+              console.error('Error creating vendor payment:', paymentError);
+              toast({
+                title: "Warning",
+                description: "Attendance marked but failed to create vendor payment record",
+                variant: "destructive",
+              });
+            }
+          }
         }
       }
 
@@ -594,35 +637,50 @@ export default function AttendanceMarkDialog({
                             </Select>
                           </div>
                         )}
-                      </div>
+                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-sm font-medium">Replacement Notes</label>
-                          <Textarea
-                            placeholder="Enter details about the replacement..."
-                            className="resize-none"
-                            value={attendanceData[employee.employee_id]?.replacementNotes || ""}
-                            onChange={(e) => updateAttendance(employee.employee_id, 'replacementNotes', e.target.value)}
-                          />
-                        </div>
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                         <div>
+                           <label className="text-sm font-medium">Replacement Notes</label>
+                           <Textarea
+                             placeholder="Enter details about the replacement..."
+                             className="resize-none"
+                             value={attendanceData[employee.employee_id]?.replacementNotes || ""}
+                             onChange={(e) => updateAttendance(employee.employee_id, 'replacementNotes', e.target.value)}
+                           />
+                         </div>
 
-                        {attendanceData[employee.employee_id]?.replacementType === 'employee' && (
-                          <div className="flex items-center space-x-2 mt-6">
-                            <Checkbox
-                              id={`overtime-${employee.employee_id}`}
-                              checked={attendanceData[employee.employee_id]?.isOvertime || false}
-                              onCheckedChange={(checked) => updateAttendance(employee.employee_id, 'isOvertime', checked as boolean)}
-                            />
-                            <label 
-                              htmlFor={`overtime-${employee.employee_id}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              This is overtime for the replacement employee
-                            </label>
-                          </div>
-                        )}
-                      </div>
+                         {attendanceData[employee.employee_id]?.replacementType === 'vendor' && (
+                           <div>
+                             <label className="text-sm font-medium">Vendor Cost (₹)</label>
+                             <input
+                               type="number"
+                               placeholder="Enter cost in rupees"
+                               className="w-full px-3 py-2 border border-input rounded-md"
+                               value={attendanceData[employee.employee_id]?.vendorCost || ""}
+                               onChange={(e) => updateAttendance(employee.employee_id, 'vendorCost', e.target.value)}
+                               min="0"
+                               step="0.01"
+                             />
+                           </div>
+                         )}
+
+                         {attendanceData[employee.employee_id]?.replacementType === 'employee' && (
+                           <div className="flex items-center space-x-2 mt-6">
+                             <Checkbox
+                               id={`overtime-${employee.employee_id}`}
+                               checked={attendanceData[employee.employee_id]?.isOvertime || false}
+                               onCheckedChange={(checked) => updateAttendance(employee.employee_id, 'isOvertime', checked as boolean)}
+                             />
+                             <label 
+                               htmlFor={`overtime-${employee.employee_id}`}
+                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                             >
+                               This is overtime for the replacement employee
+                             </label>
+                           </div>
+                         )}
+                       </div>
                     </div>
                   )}
                 </div>

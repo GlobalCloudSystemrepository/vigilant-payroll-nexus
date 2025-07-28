@@ -9,17 +9,93 @@ import {
   DollarSign, CreditCard, TrendingDown, TrendingUp,
   Calendar, User, AlertCircle, CheckCircle
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import LogVendorPaymentForm from "@/components/payroll/LogVendorPaymentForm";
 import LogCashAdvanceForm from "@/components/payroll/LogCashAdvanceForm";
 
 export default function Payroll() {
-  const [selectedMonth, setSelectedMonth] = useState("2024-01");
+  const currentMonth = format(new Date(), "yyyy-MM");
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+
+  // Fetch cash advances for the selected month
+  const { data: cashAdvances = [], isLoading } = useQuery({
+    queryKey: ["cash-advances", selectedMonth],
+    queryFn: async () => {
+      const startDate = startOfMonth(new Date(selectedMonth + "-01"));
+      const endDate = endOfMonth(new Date(selectedMonth + "-01"));
+      
+      const { data, error } = await supabase
+        .from("cash_advances")
+        .select(`
+          id,
+          employee_id,
+          amount,
+          reason,
+          date_requested,
+          date_approved,
+          approved_by,
+          notes,
+          status
+        `)
+        .gte("date_requested", format(startDate, "yyyy-MM-dd"))
+        .lte("date_requested", format(endDate, "yyyy-MM-dd"))
+        .order("date_requested", { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch employee details separately
+      const employeeIds = [...new Set(data?.map(advance => advance.employee_id).filter(Boolean))];
+      let employees: any[] = [];
+      
+      if (employeeIds.length > 0) {
+        const { data: employeeData, error: employeeError } = await supabase
+          .from("employees")
+          .select("id, name, employee_id")
+          .in("id", employeeIds);
+        
+        if (!employeeError && employeeData) {
+          employees = employeeData;
+        }
+      }
+
+      // Combine the data
+      const combinedData = data?.map(advance => ({
+        ...advance,
+        employees: employees.find(emp => emp.id === advance.employee_id)
+      }));
+
+      return combinedData || [];
+
+    },
+  });
+
+  // Transform cash advances data for display
+  const advanceRequests = cashAdvances.map((advance) => ({
+    id: advance.id,
+    employee: advance.employees?.name || "Unknown",
+    employeeId: advance.employees?.employee_id || "N/A",
+    amount: parseFloat(advance.amount.toString()),
+    reason: advance.reason || "No reason provided",
+    date: advance.date_requested,
+    dateApproved: advance.date_approved,
+    approvedBy: advance.approved_by,
+    notes: advance.notes,
+    status: advance.status
+  }));
+
+  // Calculate summary statistics
+  const totalAdvances = advanceRequests.reduce((sum, advance) => sum + advance.amount, 0);
+  const approvedAdvances = advanceRequests
+    .filter(advance => advance.status === "approved")
+    .reduce((sum, advance) => sum + advance.amount, 0);
 
   const payrollSummary = {
     totalEmployees: 127,
     totalSalary: 2845000,
-    totalAdvances: 185000,
-    netPayable: 2660000,
+    totalAdvances: totalAdvances,
+    netPayable: 2845000 - totalAdvances,
     vendorPayments: 450000
   };
 
@@ -77,32 +153,13 @@ export default function Payroll() {
     }
   ];
 
-  const advanceRequests = [
-    {
-      id: "ADV001",
-      employee: "David Brown",
-      amount: 5000,
-      reason: "Medical Emergency",
-      date: "2024-01-15",
-      status: "Pending"
-    },
-    {
-      id: "ADV002", 
-      employee: "Lisa Chen",
-      amount: 3000,
-      reason: "Festival Expenses",
-      date: "2024-01-10",
-      status: "Approved"
-    }
-  ];
-
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Processed":
-      case "Paid":
-      case "Approved": return "bg-business-success text-white";
-      case "Pending": return "bg-business-warning text-white";
-      case "Rejected": return "bg-destructive text-white";
+    switch (status.toLowerCase()) {
+      case "processed":
+      case "paid":
+      case "approved": return "bg-business-success text-white";
+      case "pending": return "bg-business-warning text-white";
+      case "rejected": return "bg-destructive text-white";
       default: return "bg-muted text-muted-foreground";
     }
   };
@@ -316,44 +373,62 @@ export default function Payroll() {
               <CardDescription>Employee cash advance tracking</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {advanceRequests.map((advance) => (
-                  <div 
-                    key={advance.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-business-warning/10 rounded-full flex items-center justify-center">
-                        <AlertCircle className="h-5 w-5 text-business-warning" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">{advance.employee}</h3>
-                        <p className="text-sm text-muted-foreground">{advance.id} • {advance.date}</p>
-                        <p className="text-sm text-muted-foreground">{advance.reason}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="font-bold text-foreground">₹{advance.amount.toLocaleString()}</p>
-                      </div>
-                      <Badge className={getStatusColor(advance.status)}>
-                        {advance.status}
-                      </Badge>
-                      {advance.status === "Pending" && (
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline">
-                            <CheckCircle className="h-4 w-4 text-business-success" />
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <AlertCircle className="h-4 w-4 text-destructive" />
-                          </Button>
+              {isLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Loading advances...</p>
+                </div>
+              ) : advanceRequests.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No cash advances found for {selectedMonth}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {advanceRequests.map((advance) => (
+                    <div 
+                      key={advance.id}
+                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-business-warning/10 rounded-full flex items-center justify-center">
+                          <AlertCircle className="h-5 w-5 text-business-warning" />
                         </div>
-                      )}
+                        <div>
+                          <h3 className="font-semibold text-foreground">{advance.employee}</h3>
+                          <p className="text-sm text-muted-foreground">{advance.employeeId} • {advance.date}</p>
+                          <p className="text-sm text-muted-foreground">{advance.reason}</p>
+                          {advance.notes && (
+                            <p className="text-xs text-muted-foreground mt-1">Notes: {advance.notes}</p>
+                          )}
+                          {advance.dateApproved && (
+                            <p className="text-xs text-muted-foreground">
+                              Approved: {advance.dateApproved} by {advance.approvedBy}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="font-bold text-foreground">₹{advance.amount.toLocaleString()}</p>
+                        </div>
+                        <Badge className={getStatusColor(advance.status)}>
+                          {advance.status}
+                        </Badge>
+                        {advance.status === "pending" && (
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline">
+                              <CheckCircle className="h-4 w-4 text-business-success" />
+                            </Button>
+                            <Button size="sm" variant="outline">
+                              <AlertCircle className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

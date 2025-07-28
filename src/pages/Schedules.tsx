@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { format } from "date-fns";
+import { format, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { cn } from "@/lib/utils";
 import { 
   Calendar as CalendarIcon, Copy, Plus, Edit, 
@@ -24,13 +25,25 @@ import {
 const scheduleFormSchema = z.object({
   employee_id: z.string().min(1, "Please select an employee"),
   customer_id: z.string().min(1, "Please select a customer/site"),
-  shift_date: z.date({
-    required_error: "Please select a date",
-  }),
+  shift_date: z.date().optional(),
   start_time: z.string().min(1, "Please select start time"),
   end_time: z.string().min(1, "Please select end time"),
   location: z.string().optional(),
   notes: z.string().optional(),
+  is_recurring: z.boolean().default(false),
+  frequency: z.enum(["daily", "weekly", "monthly", "yearly"]).optional(),
+  recurring_start_date: z.date().optional(),
+  recurring_end_date: z.date().optional(),
+}).refine((data) => {
+  if (!data.is_recurring && !data.shift_date) {
+    return false;
+  }
+  if (data.is_recurring && (!data.recurring_start_date || !data.recurring_end_date || !data.frequency)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Please complete all required fields",
 });
 
 type ScheduleFormValues = z.infer<typeof scheduleFormSchema>;
@@ -63,6 +76,8 @@ export default function Schedules() {
       end_time: "",
       location: "",
       notes: "",
+      is_recurring: false,
+      frequency: "daily",
     },
   });
 
@@ -152,29 +167,89 @@ export default function Schedules() {
     fetchData();
   }, [startDate, endDate]);
 
+  const generateRecurringDates = (startDate: Date, endDate: Date, frequency: string): Date[] => {
+    const dates: Date[] = [];
+    let currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+      dates.push(new Date(currentDate));
+      
+      switch (frequency) {
+        case 'daily':
+          currentDate = addDays(currentDate, 1);
+          break;
+        case 'weekly':
+          currentDate = addWeeks(currentDate, 1);
+          break;
+        case 'monthly':
+          currentDate = addMonths(currentDate, 1);
+          break;
+        case 'yearly':
+          currentDate = addYears(currentDate, 1);
+          break;
+        default:
+          currentDate = addDays(currentDate, 1);
+      }
+    }
+    
+    return dates;
+  };
+
   const onSubmit = async (data: ScheduleFormValues) => {
     try {
-      const scheduleData = {
-        employee_id: data.employee_id,
-        customer_id: data.customer_id,
-        shift_date: data.shift_date.toISOString().split('T')[0],
-        start_time: data.start_time,
-        end_time: data.end_time,
-        location: data.location || null,
-        notes: data.notes || null,
-        status: 'scheduled'
-      };
+      if (data.is_recurring && data.recurring_start_date && data.recurring_end_date && data.frequency) {
+        // Handle recurring schedules
+        const dates = generateRecurringDates(data.recurring_start_date, data.recurring_end_date, data.frequency);
+        
+        const scheduleDataArray = dates.map(date => ({
+          employee_id: data.employee_id,
+          customer_id: data.customer_id,
+          shift_date: date.toISOString().split('T')[0],
+          start_time: data.start_time,
+          end_time: data.end_time,
+          location: data.location || null,
+          notes: data.notes || null,
+          status: 'scheduled'
+        }));
 
-      const { error } = await supabase
-        .from("schedules")
-        .insert([scheduleData]);
+        const { error } = await supabase
+          .from("schedules")
+          .insert(scheduleDataArray);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "Schedule created successfully!",
-      });
+        toast({
+          title: "Success",
+          description: `${dates.length} recurring schedules created successfully!`,
+        });
+      } else {
+        // Handle single schedule
+        if (!data.shift_date) {
+          throw new Error("Please select a shift date");
+        }
+
+        const scheduleData = {
+          employee_id: data.employee_id,
+          customer_id: data.customer_id,
+          shift_date: data.shift_date.toISOString().split('T')[0],
+          start_time: data.start_time,
+          end_time: data.end_time,
+          location: data.location || null,
+          notes: data.notes || null,
+          status: 'scheduled'
+        };
+
+        const { error } = await supabase
+          .from("schedules")
+          .insert([scheduleData]);
+
+        if (error) throw error;
+
+        toast({
+          title: "Success",
+          description: "Schedule created successfully!",
+        });
+      }
 
       setIsCreateDialogOpen(false);
       form.reset();
@@ -332,44 +407,179 @@ export default function Schedules() {
 
                   <FormField
                     control={form.control}
-                    name="shift_date"
+                    name="is_recurring"
                     render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Shift Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) => date < new Date()}
-                              initialFocus
-                              className="pointer-events-auto"
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            Create Recurring Series of Schedules
+                          </FormLabel>
+                        </div>
                       </FormItem>
                     )}
                   />
+
+                  {form.watch("is_recurring") && (
+                    <>
+                      <FormField
+                        control={form.control}
+                        name="frequency"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Frequency</FormLabel>
+                            <div className="grid grid-cols-4 gap-2">
+                              {["daily", "weekly", "monthly", "yearly"].map((freq) => (
+                                <Button
+                                  key={freq}
+                                  type="button"
+                                  variant={field.value === freq ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => field.onChange(freq)}
+                                  className="capitalize"
+                                >
+                                  {freq}
+                                </Button>
+                              ))}
+                            </div>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="recurring_start_date"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                              <FormLabel>Start Date</FormLabel>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <FormControl>
+                                    <Button
+                                      variant="outline"
+                                      className={cn(
+                                        "w-full pl-3 text-left font-normal",
+                                        !field.value && "text-muted-foreground"
+                                      )}
+                                    >
+                                      {field.value ? (
+                                        format(field.value, "PPP")
+                                      ) : (
+                                        <span>Pick start date</span>
+                                      )}
+                                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    </Button>
+                                  </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={field.value}
+                                    onSelect={field.onChange}
+                                    disabled={(date) => date < new Date()}
+                                    initialFocus
+                                    className="pointer-events-auto"
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="recurring_end_date"
+                          render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                              <FormLabel>End Date</FormLabel>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <FormControl>
+                                    <Button
+                                      variant="outline"
+                                      className={cn(
+                                        "w-full pl-3 text-left font-normal",
+                                        !field.value && "text-muted-foreground"
+                                      )}
+                                    >
+                                      {field.value ? (
+                                        format(field.value, "PPP")
+                                      ) : (
+                                        <span>Pick end date</span>
+                                      )}
+                                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    </Button>
+                                  </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={field.value}
+                                    onSelect={field.onChange}
+                                    disabled={(date) => date < new Date()}
+                                    initialFocus
+                                    className="pointer-events-auto"
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {!form.watch("is_recurring") && (
+                    <FormField
+                      control={form.control}
+                      name="shift_date"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Shift Date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP")
+                                  ) : (
+                                    <span>Pick a date</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) => date < new Date()}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <div className="flex gap-2 mb-4">
                     <Button type="button" variant="outline" size="sm" onClick={() => setQuickShift(8)}>

@@ -73,16 +73,16 @@ export default function Payroll() {
   });
 
   // Transform cash advances data for display
-  const advanceRequests = cashAdvances.map((advance) => ({
+  const advanceRequests = (cashAdvances || []).map((advance) => ({
     id: advance.id,
-    employee: advance.employees?.name || "Unknown",
+    employee: advance.employees?.name || "Unknown Employee",
     employeeId: advance.employees?.employee_id || "N/A",
-    amount: parseFloat(advance.amount.toString()),
+    amount: parseFloat(advance.amount?.toString() || "0"),
     reason: advance.reason || "No reason provided",
     date: advance.date_requested,
     dateApproved: advance.date_approved,
-    approvedBy: advance.approved_by,
-    notes: advance.notes,
+    approvedBy: advance.approved_by || "N/A",
+    notes: advance.notes || "",
     status: advance.status
   }));
 

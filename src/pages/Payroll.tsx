@@ -16,7 +16,8 @@ import LogVendorPaymentForm from "@/components/payroll/LogVendorPaymentForm";
 import LogCashAdvanceForm from "@/components/payroll/LogCashAdvanceForm";
 
 export default function Payroll() {
-  const currentMonth = format(new Date(), "yyyy-MM");
+  // Set current month to July 2025 (actual current month)
+  const currentMonth = "2025-07";
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
   // Fetch cash advances for the selected month

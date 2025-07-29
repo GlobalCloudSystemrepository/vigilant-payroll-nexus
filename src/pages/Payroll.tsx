@@ -24,8 +24,12 @@ export default function Payroll() {
   const { data: cashAdvances = [], isLoading } = useQuery({
     queryKey: ["cash-advances", selectedMonth],
     queryFn: async () => {
-      const startDate = startOfMonth(new Date(selectedMonth + "-01"));
-      const endDate = endOfMonth(new Date(selectedMonth + "-01"));
+      const year = selectedMonth.split('-')[0];
+      const month = selectedMonth.split('-')[1];
+      const startDate = `${year}-${month}-01`;
+      const endDate = `${year}-${month}-31`;
+      
+      console.log("Filtering cash advances between:", startDate, "and", endDate);
       
       const { data, error } = await supabase
         .from("cash_advances")
@@ -40,8 +44,8 @@ export default function Payroll() {
           notes,
           status
         `)
-        .gte("date_requested", format(startDate, "yyyy-MM-dd"))
-        .lte("date_requested", format(endDate, "yyyy-MM-dd"))
+        .gte("date_requested", startDate)
+        .lte("date_requested", endDate)
         .order("date_requested", { ascending: false });
 
       if (error) {

@@ -44,7 +44,12 @@ export default function Payroll() {
         .lte("date_requested", format(endDate, "yyyy-MM-dd"))
         .order("date_requested", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching cash advances:", error);
+        throw error;
+      }
+
+      console.log("Raw cash advances data:", data);
 
       // Fetch employee details separately
       const employeeIds = [...new Set(data?.map(advance => advance.employee_id).filter(Boolean))];
@@ -59,6 +64,7 @@ export default function Payroll() {
         if (!employeeError && employeeData) {
           employees = employeeData;
         }
+        console.log("Employee data:", employees);
       }
 
       // Combine the data
@@ -67,6 +73,7 @@ export default function Payroll() {
         employees: employees.find(emp => emp.id === advance.employee_id)
       }));
 
+      console.log("Combined data:", combinedData);
       return combinedData || [];
 
     },

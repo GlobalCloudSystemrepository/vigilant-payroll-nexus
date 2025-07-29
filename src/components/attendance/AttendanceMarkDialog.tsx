@@ -106,14 +106,17 @@ export default function AttendanceMarkDialog({
 
   // Set initial data when editing a record
   useEffect(() => {
-    if (editRecord && open) {
+    if (editRecord && open && scheduledEmployees.length > 0) {
       setSelectedDate(new Date(editRecord.date));
       setSelectedEmployee(editRecord.employee_id);
       
+      // Find the employee's schedule to get default times
+      const employeeSchedule = scheduledEmployees.find(emp => emp.employee_id === editRecord.employee_id);
+      
       const initialData = {
         status: editRecord.status,
-        checkIn: formatTime(editRecord.check_in_time),
-        checkOut: formatTime(editRecord.check_out_time),
+        checkIn: formatTime(editRecord.check_in_time) || employeeSchedule?.start_time || '',
+        checkOut: formatTime(editRecord.check_out_time) || employeeSchedule?.end_time || '',
         notes: editRecord.notes || '',
         replacementType: editRecord.replacement_type || '',
         replacementVendorId: editRecord.replacement_vendor_id || '',
@@ -125,7 +128,7 @@ export default function AttendanceMarkDialog({
       
       setAttendanceData({ [editRecord.employee_id]: initialData });
     }
-  }, [editRecord, open]);
+  }, [editRecord, open, scheduledEmployees]);
 
   useEffect(() => {
     if (open && selectedDate && !editRecord) {
@@ -222,7 +225,7 @@ export default function AttendanceMarkDialog({
 
       setScheduledEmployees(formattedEmployees);
 
-      // Check existing attendance
+      // Check existing attendance and auto-fill schedule times
       if (formattedEmployees.length > 0) {
         const employeeIds = formattedEmployees.map(emp => emp.employee_id);
         const { data: attendance } = await supabase
@@ -232,20 +235,25 @@ export default function AttendanceMarkDialog({
           .eq('date', format(selectedDate, 'yyyy-MM-dd'));
 
         const attendanceMap: Record<string, any> = {};
-        attendance?.forEach(att => {
-          attendanceMap[att.employee_id] = {
-            status: att.status,
-            checkIn: formatTime(att.check_in_time),
-            checkOut: formatTime(att.check_out_time),
-            notes: att.notes || '',
-            replacementType: att.replacement_type || '',
-            replacementVendorId: att.replacement_vendor_id || '',
-            replacementEmployeeId: att.replacement_employee_id || '',
-            replacementNotes: att.replacement_notes || '',
-            isOvertime: att.is_overtime || false,
+        
+        // Initialize with schedule times for all employees
+        formattedEmployees.forEach(emp => {
+          const existingAttendance = attendance?.find(att => att.employee_id === emp.employee_id);
+          
+          attendanceMap[emp.employee_id] = {
+            status: existingAttendance?.status || '',
+            checkIn: existingAttendance ? formatTime(existingAttendance.check_in_time) : emp.start_time,
+            checkOut: existingAttendance ? formatTime(existingAttendance.check_out_time) : emp.end_time,
+            notes: existingAttendance?.notes || '',
+            replacementType: existingAttendance?.replacement_type || '',
+            replacementVendorId: existingAttendance?.replacement_vendor_id || '',
+            replacementEmployeeId: existingAttendance?.replacement_employee_id || '',
+            replacementNotes: existingAttendance?.replacement_notes || '',
+            isOvertime: existingAttendance?.is_overtime || false,
             vendorCost: ''
           };
         });
+        
         setAttendanceData(attendanceMap);
       }
     } catch (error) {

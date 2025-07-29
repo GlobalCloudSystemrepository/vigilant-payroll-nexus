@@ -85,6 +85,10 @@ export default function Schedules() {
     try {
       setLoading(true);
       
+      // Ensure we have valid dates for filtering
+      const filterStartDate = startDate || new Date();
+      const filterEndDate = endDate || new Date();
+      
       // Fetch employees and customers
       const [employeesResult, customersResult] = await Promise.all([
         supabase.from("employees").select("*").eq("status", "active"),
@@ -105,8 +109,8 @@ export default function Schedules() {
           employees!schedules_employee_id_fkey(name),
           customers!fk_schedules_customer(company_name)
         `)
-        .gte("shift_date", startDate?.toISOString().split('T')[0])
-        .lte("shift_date", endDate?.toISOString().split('T')[0])
+        .gte("shift_date", filterStartDate.toISOString().split('T')[0])
+        .lte("shift_date", filterEndDate.toISOString().split('T')[0])
         .order("shift_date", { ascending: true });
 
       if (schedulesResult.error) {
@@ -115,8 +119,8 @@ export default function Schedules() {
         const fallbackResult = await supabase
           .from("schedules")
           .select("*")
-          .gte("shift_date", startDate?.toISOString().split('T')[0])
-          .lte("shift_date", endDate?.toISOString().split('T')[0])
+          .gte("shift_date", filterStartDate.toISOString().split('T')[0])
+          .lte("shift_date", filterEndDate.toISOString().split('T')[0])
           .order("shift_date", { ascending: true });
         
         if (fallbackResult.error) throw fallbackResult.error;

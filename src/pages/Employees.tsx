@@ -249,10 +249,36 @@ export default function Employees() {
     }
   };
 
-  const handleAddEmployee = () => {
+  const generateNextEmployeeId = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('employee_id')
+        .like('employee_id', 'EMP%')
+        .order('employee_id', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      let nextNumber = 1;
+      if (data && data.length > 0) {
+        const lastId = data[0].employee_id;
+        const numberPart = lastId.replace('EMP', '');
+        nextNumber = parseInt(numberPart) + 1;
+      }
+
+      return `EMP${nextNumber.toString().padStart(4, '0')}`;
+    } catch (error) {
+      console.error('Error generating employee ID:', error);
+      return `EMP${Date.now().toString().slice(-4)}`;
+    }
+  };
+
+  const handleAddEmployee = async () => {
+    const nextEmployeeId = await generateNextEmployeeId();
     setEditFormData({
       name: "",
-      employee_id: "",
+      employee_id: nextEmployeeId,
       email: "",
       phone: "",
       position: "",
@@ -560,9 +586,9 @@ export default function Employees() {
               <Input
                 id="employee_id"
                 value={editFormData.employee_id}
-                onChange={(e) => setEditFormData({...editFormData, employee_id: e.target.value})}
-                className="col-span-3"
-                required
+                className="col-span-3 bg-muted"
+                readOnly
+                disabled
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

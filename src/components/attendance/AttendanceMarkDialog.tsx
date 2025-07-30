@@ -72,7 +72,9 @@ export default function AttendanceMarkDialog({
 }: AttendanceMarkDialogProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [scheduledEmployees, setScheduledEmployees] = useState<ScheduledEmployee[]>([]);
+  const [filteredEmployees, setFilteredEmployees] = useState<ScheduledEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
+  const [selectedClient, setSelectedClient] = useState<string>("all");
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendanceData, setAttendanceData] = useState<Record<string, {
@@ -86,6 +88,8 @@ export default function AttendanceMarkDialog({
     replacementNotes: string;
     isOvertime: boolean;
     vendorCost: string;
+    isPresent: boolean;
+    isAbsent: boolean;
   }>>({});
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -123,12 +127,24 @@ export default function AttendanceMarkDialog({
         replacementEmployeeId: editRecord.replacement_employee_id || '',
         replacementNotes: editRecord.replacement_notes || '',
         isOvertime: editRecord.is_overtime || false,
-        vendorCost: ''
+        vendorCost: '',
+        isPresent: editRecord.status === 'present',
+        isAbsent: editRecord.status === 'absent'
       };
       
       setAttendanceData({ [editRecord.employee_id]: initialData });
     }
   }, [editRecord, open, scheduledEmployees]);
+
+  // Filter employees by client
+  useEffect(() => {
+    if (selectedClient === "all") {
+      setFilteredEmployees(scheduledEmployees);
+    } else {
+      const filtered = scheduledEmployees.filter(emp => emp.customer_name === selectedClient);
+      setFilteredEmployees(filtered);
+    }
+  }, [scheduledEmployees, selectedClient]);
 
   useEffect(() => {
     if (open && selectedDate && !editRecord) {
@@ -250,7 +266,9 @@ export default function AttendanceMarkDialog({
             replacementEmployeeId: existingAttendance?.replacement_employee_id || '',
             replacementNotes: existingAttendance?.replacement_notes || '',
             isOvertime: existingAttendance?.is_overtime || false,
-            vendorCost: ''
+            vendorCost: '',
+            isPresent: existingAttendance?.status === 'present' || false,
+            isAbsent: existingAttendance?.status === 'absent' || false
           };
         });
         
@@ -301,16 +319,45 @@ export default function AttendanceMarkDialog({
       ...prev,
       [employeeId]: {
         ...prev[employeeId],
-        [field]: value
+        [field]: value,
+        // Update status based on checkbox changes
+        ...(field === 'isPresent' && value ? { status: 'present', isAbsent: false } : {}),
+        ...(field === 'isAbsent' && value ? { status: 'absent', isPresent: false } : {}),
+        ...(field === 'isPresent' && !value && prev[employeeId]?.status === 'present' ? { status: '' } : {}),
+        ...(field === 'isAbsent' && !value && prev[employeeId]?.status === 'absent' ? { status: '' } : {})
       }
     }));
   };
+
+  // Get unique clients for filter
+  const uniqueClients = [...new Set(scheduledEmployees.map(emp => emp.customer_name))];
+
+  // Select all functions
+  const handleSelectAllPresent = (checked: boolean) => {
+    filteredEmployees.forEach(emp => {
+      updateAttendance(emp.employee_id, 'isPresent', checked);
+    });
+  };
+
+  const handleSelectAllAbsent = (checked: boolean) => {
+    filteredEmployees.forEach(emp => {
+      updateAttendance(emp.employee_id, 'isAbsent', checked);
+    });
+  };
+
+  // Check if all present/absent are selected
+  const allPresentSelected = filteredEmployees.length > 0 && filteredEmployees.every(emp => 
+    attendanceData[emp.employee_id]?.isPresent
+  );
+  const allAbsentSelected = filteredEmployees.length > 0 && filteredEmployees.every(emp => 
+    attendanceData[emp.employee_id]?.isAbsent
+  );
 
   const handleSubmit = async () => {
     setIsLoading(true);
     try {
       const employeesToProcess = isBulk 
-        ? scheduledEmployees 
+        ? filteredEmployees 
         : scheduledEmployees.filter(emp => emp.employee_id === selectedEmployee);
 
       for (const employee of employeesToProcess) {
@@ -472,6 +519,26 @@ export default function AttendanceMarkDialog({
             </Popover>
           </div>
 
+          {/* Client Filter for Bulk Mode */}
+          {isBulk && !editRecord && (
+            <div className="flex flex-col space-y-2">
+              <label className="text-sm font-medium">Filter by Client</label>
+              <Select value={selectedClient} onValueChange={setSelectedClient}>
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue placeholder="Select client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Clients ({scheduledEmployees.length} employees)</SelectItem>
+                  {uniqueClients.map((client) => (
+                    <SelectItem key={client} value={client}>
+                      {client} ({scheduledEmployees.filter(emp => emp.customer_name === client).length} employees)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Employee Selection (for single attendance) - Disabled in edit mode */}
           {!isBulk && !editRecord && (
             <div className="flex flex-col space-y-2">
@@ -491,17 +558,48 @@ export default function AttendanceMarkDialog({
             </div>
           )}
 
+          {/* Bulk Present/Absent Controls */}
+          {isBulk && !editRecord && filteredEmployees.length > 0 && (
+            <div className="border rounded-lg p-4 bg-muted/20">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-medium">Quick Actions:</span>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="select-all-present"
+                    checked={allPresentSelected}
+                    onCheckedChange={handleSelectAllPresent}
+                  />
+                  <label htmlFor="select-all-present" className="text-sm font-medium text-business-success">
+                    Mark All Present
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="select-all-absent"
+                    checked={allAbsentSelected}
+                    onCheckedChange={handleSelectAllAbsent}
+                  />
+                  <label htmlFor="select-all-absent" className="text-sm font-medium text-destructive">
+                    Mark All Absent
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Scheduled Employees */}
-          {scheduledEmployees.length > 0 && (
+          {(isBulk ? filteredEmployees : scheduledEmployees).length > 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">
-                {editRecord ? "Employee Schedule" : `Scheduled Employees (${scheduledEmployees.length})`}
+                {editRecord ? "Employee Schedule" : 
+                 isBulk ? `${selectedClient === "all" ? "All" : selectedClient} Employees (${filteredEmployees.length})` :
+                 `Scheduled Employees (${scheduledEmployees.length})`}
               </h3>
               
-              {(isBulk ? scheduledEmployees : scheduledEmployees.filter(emp => editRecord ? emp.employee_id === editRecord.employee_id : emp.employee_id === selectedEmployee)).map((employee) => (
+              {(isBulk ? filteredEmployees : scheduledEmployees.filter(emp => editRecord ? emp.employee_id === editRecord.employee_id : emp.employee_id === selectedEmployee)).map((employee) => (
                 <div key={employee.employee_id} className="border rounded-lg p-4 space-y-4">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex-1">
                       <h4 className="font-semibold">{employee.employee_name}</h4>
                       <div className="flex items-center gap-2 mt-1">
                         <MapPin className="h-3 w-3 text-muted-foreground" />
@@ -516,6 +614,32 @@ export default function AttendanceMarkDialog({
                         </span>
                       </div>
                     </div>
+
+                    {/* Present/Absent Checkboxes for Bulk Mode */}
+                    {isBulk && !editRecord && (
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`present-${employee.employee_id}`}
+                            checked={attendanceData[employee.employee_id]?.isPresent || false}
+                            onCheckedChange={(checked) => updateAttendance(employee.employee_id, 'isPresent', checked)}
+                          />
+                          <label htmlFor={`present-${employee.employee_id}`} className="text-sm font-medium text-business-success">
+                            Present
+                          </label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`absent-${employee.employee_id}`}
+                            checked={attendanceData[employee.employee_id]?.isAbsent || false}
+                            onCheckedChange={(checked) => updateAttendance(employee.employee_id, 'isAbsent', checked)}
+                          />
+                          <label htmlFor={`absent-${employee.employee_id}`} className="text-sm font-medium text-destructive">
+                            Absent
+                          </label>
+                        </div>
+                      </div>
+                    )}
                     
                     {attendanceData[employee.employee_id]?.status && (
                       <Badge className={getStatusColor(attendanceData[employee.employee_id].status)}>
@@ -524,55 +648,94 @@ export default function AttendanceMarkDialog({
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">Status</label>
-                      <Select 
-                        value={attendanceData[employee.employee_id]?.status || ""} 
-                        onValueChange={(value) => updateAttendance(employee.employee_id, 'status', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="present">Present</SelectItem>
-                          <SelectItem value="late">Late</SelectItem>
-                          <SelectItem value="absent">Absent</SelectItem>
-                        </SelectContent>
-                      </Select>
+                  {/* Status Dropdown for non-bulk mode */}
+                  {!isBulk && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="text-sm font-medium">Status</label>
+                        <Select 
+                          value={attendanceData[employee.employee_id]?.status || ""} 
+                          onValueChange={(value) => updateAttendance(employee.employee_id, 'status', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="present">Present</SelectItem>
+                            <SelectItem value="late">Late</SelectItem>
+                            <SelectItem value="absent">Absent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium">Check In</label>
+                        <input
+                          type="time"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={attendanceData[employee.employee_id]?.checkIn || ""}
+                          onChange={(e) => updateAttendance(employee.employee_id, 'checkIn', e.target.value)}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium">Check Out</label>
+                        <input
+                          type="time"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={attendanceData[employee.employee_id]?.checkOut || ""}
+                          onChange={(e) => updateAttendance(employee.employee_id, 'checkOut', e.target.value)}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium">Notes</label>
+                        <input
+                          type="text"
+                          placeholder="Optional notes"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={attendanceData[employee.employee_id]?.notes || ""}
+                          onChange={(e) => updateAttendance(employee.employee_id, 'notes', e.target.value)}
+                        />
+                      </div>
                     </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium">Check In</label>
-                      <input
-                        type="time"
-                        className="w-full px-3 py-2 border border-input rounded-md"
-                        value={attendanceData[employee.employee_id]?.checkIn || ""}
-                        onChange={(e) => updateAttendance(employee.employee_id, 'checkIn', e.target.value)}
-                      />
+                  )}
+
+                  {/* Time fields for bulk mode */}
+                  {isBulk && (attendanceData[employee.employee_id]?.isPresent || attendanceData[employee.employee_id]?.isAbsent) && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-sm font-medium">Check In</label>
+                        <input
+                          type="time"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={attendanceData[employee.employee_id]?.checkIn || ""}
+                          onChange={(e) => updateAttendance(employee.employee_id, 'checkIn', e.target.value)}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium">Check Out</label>
+                        <input
+                          type="time"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={attendanceData[employee.employee_id]?.checkOut || ""}
+                          onChange={(e) => updateAttendance(employee.employee_id, 'checkOut', e.target.value)}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="text-sm font-medium">Notes</label>
+                        <input
+                          type="text"
+                          placeholder="Optional notes"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={attendanceData[employee.employee_id]?.notes || ""}
+                          onChange={(e) => updateAttendance(employee.employee_id, 'notes', e.target.value)}
+                        />
+                      </div>
                     </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium">Check Out</label>
-                      <input
-                        type="time"
-                        className="w-full px-3 py-2 border border-input rounded-md"
-                        value={attendanceData[employee.employee_id]?.checkOut || ""}
-                        onChange={(e) => updateAttendance(employee.employee_id, 'checkOut', e.target.value)}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium">Notes</label>
-                      <input
-                        type="text"
-                        placeholder="Optional notes"
-                        className="w-full px-3 py-2 border border-input rounded-md"
-                        value={attendanceData[employee.employee_id]?.notes || ""}
-                        onChange={(e) => updateAttendance(employee.employee_id, 'notes', e.target.value)}
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   {/* Replacement Section - Only show when status is absent */}
                   {attendanceData[employee.employee_id]?.status === 'absent' && (
@@ -696,9 +859,12 @@ export default function AttendanceMarkDialog({
             </div>
           )}
 
-          {scheduledEmployees.length === 0 && !isLoading && (
+          {(isBulk ? filteredEmployees : scheduledEmployees).length === 0 && !isLoading && (
             <div className="text-center py-8 text-muted-foreground">
-              {editRecord ? "Unable to load employee schedule" : `No employees scheduled for ${format(selectedDate, "PPP")}`}
+              {editRecord ? "Unable to load employee schedule" : 
+               isBulk && filteredEmployees.length === 0 && scheduledEmployees.length > 0 ? 
+               `No employees found for ${selectedClient}` :
+               `No employees scheduled for ${format(selectedDate, "PPP")}`}
             </div>
           )}
 

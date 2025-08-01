@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,7 +35,20 @@ export default function Employees() {
     department: "",
     hire_date: "",
     salary: "",
-    status: "active"
+    status: "active",
+    address: "",
+    pan_number: "",
+    adhaar_number: "",
+    voter_id: "",
+    basic_salary: 0,
+    hra: 0,
+    allowance: 0,
+    pf_applicable: false,
+    pf_amount: 0,
+    esic_applicable: false,
+    esic_amount: 0,
+    gross_salary: 0,
+    net_salary: 0
   });
   const { toast } = useToast();
 
@@ -154,6 +169,20 @@ export default function Employees() {
     input.click();
   };
 
+  const calculateSalaryComponents = (basic: number, hra: number, allowance: number, pfApplicable: boolean, esicApplicable: boolean) => {
+    const gross = basic + hra + allowance;
+    const pf = pfApplicable ? basic * 0.12 : 0;
+    const esic = esicApplicable ? gross * 0.0075 : 0;
+    const net = gross - pf - esic;
+    
+    return {
+      gross_salary: gross,
+      pf_amount: pf,
+      esic_amount: esic,
+      net_salary: net
+    };
+  };
+
   const handleEditEmployee = (employeeId: string) => {
     const employee = employees.find(emp => emp.id === employeeId);
     if (employee) {
@@ -167,7 +196,20 @@ export default function Employees() {
         department: employee.department || "",
         hire_date: employee.hire_date || "",
         salary: employee.salary?.toString() || "",
-        status: employee.status
+        status: employee.status,
+        address: employee.address || "",
+        pan_number: employee.pan_number || "",
+        adhaar_number: employee.adhaar_number || "",
+        voter_id: employee.voter_id || "",
+        basic_salary: employee.basic_salary || 0,
+        hra: employee.hra || 0,
+        allowance: employee.allowance || 0,
+        pf_applicable: employee.pf_applicable || false,
+        pf_amount: employee.pf_amount || 0,
+        esic_applicable: employee.esic_applicable || false,
+        esic_amount: employee.esic_amount || 0,
+        gross_salary: employee.gross_salary || 0,
+        net_salary: employee.net_salary || 0
       });
       setEditDialogOpen(true);
     }
@@ -197,6 +239,19 @@ export default function Employees() {
           hire_date: editFormData.hire_date,
           salary: parseFloat(editFormData.salary) || null,
           status: editFormData.status,
+          address: editFormData.address,
+          pan_number: editFormData.pan_number,
+          adhaar_number: editFormData.adhaar_number,
+          voter_id: editFormData.voter_id,
+          basic_salary: editFormData.basic_salary,
+          hra: editFormData.hra,
+          allowance: editFormData.allowance,
+          pf_applicable: editFormData.pf_applicable,
+          pf_amount: editFormData.pf_amount,
+          esic_applicable: editFormData.esic_applicable,
+          esic_amount: editFormData.esic_amount,
+          gross_salary: editFormData.gross_salary,
+          net_salary: editFormData.net_salary
         })
         .eq('id', selectedEmployee.id);
 
@@ -285,7 +340,20 @@ export default function Employees() {
       department: "",
       hire_date: "",
       salary: "",
-      status: "active"
+      status: "active",
+      address: "",
+      pan_number: "",
+      adhaar_number: "",
+      voter_id: "",
+      basic_salary: 0,
+      hra: 0,
+      allowance: 0,
+      pf_applicable: false,
+      pf_amount: 0,
+      esic_applicable: false,
+      esic_amount: 0,
+      gross_salary: 0,
+      net_salary: 0
     });
     setAddDialogOpen(true);
   };
@@ -304,6 +372,19 @@ export default function Employees() {
           hire_date: editFormData.hire_date,
           salary: parseFloat(editFormData.salary) || null,
           status: editFormData.status,
+          address: editFormData.address,
+          pan_number: editFormData.pan_number,
+          adhaar_number: editFormData.adhaar_number,
+          voter_id: editFormData.voter_id,
+          basic_salary: editFormData.basic_salary,
+          hra: editFormData.hra,
+          allowance: editFormData.allowance,
+          pf_applicable: editFormData.pf_applicable,
+          pf_amount: editFormData.pf_amount,
+          esic_applicable: editFormData.esic_applicable,
+          esic_amount: editFormData.esic_amount,
+          gross_salary: editFormData.gross_salary,
+          net_salary: editFormData.net_salary
         });
 
       if (error) throw error;
@@ -563,106 +644,311 @@ export default function Employees() {
 
       {/* Add Employee Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add New Employee</DialogTitle>
             <DialogDescription>
               Enter the employee details to add them to the system.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">Name*</Label>
-              <Input
-                id="name"
-                value={editFormData.name}
-                onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
-                className="col-span-3"
-                required
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="employee_id" className="text-right">Employee ID*</Label>
-              <Input
-                id="employee_id"
-                value={editFormData.employee_id}
-                className="col-span-3 bg-muted"
-                readOnly
-                disabled
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={editFormData.email}
-                onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phone" className="text-right">Phone</Label>
-              <Input
-                id="phone"
-                value={editFormData.phone}
-                onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="position" className="text-right">Position</Label>
-              <Input
-                id="position"
-                value={editFormData.position}
-                onChange={(e) => setEditFormData({...editFormData, position: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="department" className="text-right">Department</Label>
-              <Input
-                id="department"
-                value={editFormData.department}
-                onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="hire_date" className="text-right">Hire Date</Label>
-              <Input
-                id="hire_date"
-                type="date"
-                value={editFormData.hire_date}
-                onChange={(e) => setEditFormData({...editFormData, hire_date: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="salary" className="text-right">Salary</Label>
-              <Input
-                id="salary"
-                type="number"
-                value={editFormData.salary}
-                onChange={(e) => setEditFormData({...editFormData, salary: e.target.value})}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status" className="text-right">Status</Label>
-              <Select value={editFormData.status} onValueChange={(value) => setEditFormData({...editFormData, status: value})}>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="on_leave">On Leave</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
+
+          <Tabs defaultValue="demographic" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="demographic">Demographic Information</TabsTrigger>
+              <TabsTrigger value="kyc">KYC Documents</TabsTrigger>
+              <TabsTrigger value="salary">Salary Components</TabsTrigger>
+            </TabsList>
+
+            {/* Demographic Information Section */}
+            <TabsContent value="demographic" className="space-y-4 mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full Name*</Label>
+                  <Input
+                    id="name"
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData({...editFormData, name: e.target.value})}
+                    placeholder="Enter full name"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="employee_id">Employee ID*</Label>
+                  <Input
+                    id="employee_id"
+                    value={editFormData.employee_id}
+                    className="bg-muted"
+                    readOnly
+                    disabled
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={editFormData.email}
+                    onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                    placeholder="email@example.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    value={editFormData.phone}
+                    onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                    placeholder="+91 XXXXX XXXXX"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="position">Position</Label>
+                  <Input
+                    id="position"
+                    value={editFormData.position}
+                    onChange={(e) => setEditFormData({...editFormData, position: e.target.value})}
+                    placeholder="Security Guard, Supervisor, etc."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="department">Department</Label>
+                  <Input
+                    id="department"
+                    value={editFormData.department}
+                    onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
+                    placeholder="Security Department"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="hire_date">Hire Date</Label>
+                  <Input
+                    id="hire_date"
+                    type="date"
+                    value={editFormData.hire_date}
+                    onChange={(e) => setEditFormData({...editFormData, hire_date: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status">Employee Status</Label>
+                  <Select value={editFormData.status} onValueChange={(value) => setEditFormData({...editFormData, status: value})}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="on_leave">On Leave</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Indian Address</Label>
+                <Textarea
+                  id="address"
+                  value={editFormData.address}
+                  onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
+                  placeholder="Complete address with pincode"
+                  rows={3}
+                />
+              </div>
+            </TabsContent>
+
+            {/* KYC Documents Section */}
+            <TabsContent value="kyc" className="space-y-4 mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pan_number">PAN Number</Label>
+                  <Input
+                    id="pan_number"
+                    value={editFormData.pan_number}
+                    onChange={(e) => setEditFormData({...editFormData, pan_number: e.target.value.toUpperCase()})}
+                    placeholder="ABCDE1234F"
+                    maxLength={10}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="adhaar_number">Aadhaar Number</Label>
+                  <Input
+                    id="adhaar_number"
+                    value={editFormData.adhaar_number}
+                    onChange={(e) => setEditFormData({...editFormData, adhaar_number: e.target.value})}
+                    placeholder="XXXX XXXX XXXX"
+                    maxLength={12}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="voter_id">Voter ID</Label>
+                  <Input
+                    id="voter_id"
+                    value={editFormData.voter_id}
+                    onChange={(e) => setEditFormData({...editFormData, voter_id: e.target.value.toUpperCase()})}
+                    placeholder="ABC1234567"
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            {/* Salary Components Section */}
+            <TabsContent value="salary" className="space-y-4 mt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="font-medium text-lg">Basic Salary Components</h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="basic_salary">Basic Salary*</Label>
+                    <Input
+                      id="basic_salary"
+                      type="number"
+                      value={editFormData.basic_salary || ''}
+                      onChange={(e) => {
+                        const basic = parseFloat(e.target.value) || 0;
+                        const calculated = calculateSalaryComponents(
+                          basic, 
+                          editFormData.hra, 
+                          editFormData.allowance, 
+                          editFormData.pf_applicable, 
+                          editFormData.esic_applicable
+                        );
+                        setEditFormData({
+                          ...editFormData, 
+                          basic_salary: basic,
+                          ...calculated
+                        });
+                      }}
+                      placeholder="Enter basic salary"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="hra">HRA (House Rent Allowance)</Label>
+                    <Input
+                      id="hra"
+                      type="number"
+                      value={editFormData.hra || ''}
+                      onChange={(e) => {
+                        const hra = parseFloat(e.target.value) || 0;
+                        const calculated = calculateSalaryComponents(
+                          editFormData.basic_salary, 
+                          hra, 
+                          editFormData.allowance, 
+                          editFormData.pf_applicable, 
+                          editFormData.esic_applicable
+                        );
+                        setEditFormData({
+                          ...editFormData, 
+                          hra: hra,
+                          ...calculated
+                        });
+                      }}
+                      placeholder="Enter HRA amount"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="allowance">Other Allowances</Label>
+                    <Input
+                      id="allowance"
+                      type="number"
+                      value={editFormData.allowance || ''}
+                      onChange={(e) => {
+                        const allowance = parseFloat(e.target.value) || 0;
+                        const calculated = calculateSalaryComponents(
+                          editFormData.basic_salary, 
+                          editFormData.hra, 
+                          allowance, 
+                          editFormData.pf_applicable, 
+                          editFormData.esic_applicable
+                        );
+                        setEditFormData({
+                          ...editFormData, 
+                          allowance: allowance,
+                          ...calculated
+                        });
+                      }}
+                      placeholder="Travel, Medical, etc."
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="font-medium text-lg">Deductions & Net Salary</h4>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="pf_applicable" 
+                        checked={editFormData.pf_applicable}
+                        onCheckedChange={(checked) => {
+                          const calculated = calculateSalaryComponents(
+                            editFormData.basic_salary, 
+                            editFormData.hra, 
+                            editFormData.allowance, 
+                            checked as boolean, 
+                            editFormData.esic_applicable
+                          );
+                          setEditFormData({
+                            ...editFormData, 
+                            pf_applicable: checked as boolean,
+                            ...calculated
+                          });
+                        }}
+                      />
+                      <Label htmlFor="pf_applicable">PF Applicable (12% of Basic)</Label>
+                    </div>
+                    {editFormData.pf_applicable && (
+                      <div className="ml-6">
+                        <Label className="text-sm text-muted-foreground">PF Amount: ₹{editFormData.pf_amount.toFixed(2)}</Label>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="esic_applicable" 
+                        checked={editFormData.esic_applicable}
+                        onCheckedChange={(checked) => {
+                          const calculated = calculateSalaryComponents(
+                            editFormData.basic_salary, 
+                            editFormData.hra, 
+                            editFormData.allowance, 
+                            editFormData.pf_applicable, 
+                            checked as boolean
+                          );
+                          setEditFormData({
+                            ...editFormData, 
+                            esic_applicable: checked as boolean,
+                            ...calculated
+                          });
+                        }}
+                      />
+                      <Label htmlFor="esic_applicable">ESIC Applicable (0.75% of Gross)</Label>
+                    </div>
+                    {editFormData.esic_applicable && (
+                      <div className="ml-6">
+                        <Label className="text-sm text-muted-foreground">ESIC Amount: ₹{editFormData.esic_amount.toFixed(2)}</Label>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-4 border-t space-y-2">
+                    <div className="flex justify-between">
+                      <Label className="font-medium">Gross Salary:</Label>
+                      <span className="font-semibold">₹{editFormData.gross_salary.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <Label className="font-medium">Total Deductions:</Label>
+                      <span className="font-semibold">₹{(editFormData.pf_amount + editFormData.esic_amount).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold text-primary">
+                      <Label>Net Salary:</Label>
+                      <span>₹{editFormData.net_salary.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter className="mt-6">
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveAdd}>Add Employee</Button>
           </DialogFooter>

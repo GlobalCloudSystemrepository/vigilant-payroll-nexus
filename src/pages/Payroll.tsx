@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import LogVendorPaymentForm from "@/components/payroll/LogVendorPaymentForm";
 import LogCashAdvanceForm from "@/components/payroll/LogCashAdvanceForm";
+import * as XLSX from 'xlsx';
 
 export default function Payroll() {
   // Set current month to July 2025 (actual current month)
@@ -206,6 +207,59 @@ export default function Payroll() {
     status: "Paid" // All records in vendor_payments are considered paid
   }));
 
+  const generateExcelReport = () => {
+    // Employee Payroll Sheet
+    const employeeSheet = employeePayroll.map(emp => ({
+      'Employee ID': emp.id,
+      'Employee Name': emp.name,
+      'Base Salary': emp.baseSalary,
+      'Overtime Pay': emp.overtime,
+      'Advances': emp.advance,
+      'Deductions': emp.deductions,
+      'Net Salary': emp.netSalary,
+      'Status': emp.status
+    }));
+
+    // Vendor Payments Sheet
+    const vendorSheet = vendorPaymentsList.map(payment => ({
+      'Vendor ID': payment.id,
+      'Vendor Name': payment.name,
+      'Customer': payment.customer,
+      'Amount': payment.amount,
+      'Payment Date': payment.date,
+      'Notes': payment.notes,
+      'Status': payment.status
+    }));
+
+    // Advances Sheet
+    const advancesSheet = advanceRequests.map(advance => ({
+      'Employee': advance.employee,
+      'Employee ID': advance.employeeId,
+      'Amount': advance.amount,
+      'Reason': advance.reason,
+      'Request Date': advance.date,
+      'Approved Date': advance.dateApproved || 'N/A',
+      'Approved By': advance.approvedBy,
+      'Notes': advance.notes,
+      'Status': advance.status
+    }));
+
+    // Create workbook with multiple sheets
+    const wb = XLSX.utils.book_new();
+    
+    const employeeWS = XLSX.utils.json_to_sheet(employeeSheet);
+    const vendorWS = XLSX.utils.json_to_sheet(vendorSheet);
+    const advancesWS = XLSX.utils.json_to_sheet(advancesSheet);
+
+    XLSX.utils.book_append_sheet(wb, employeeWS, "Employee Payroll");
+    XLSX.utils.book_append_sheet(wb, vendorWS, "Vendor Payments");
+    XLSX.utils.book_append_sheet(wb, advancesWS, "Cash Advances");
+
+    // Download the file
+    const fileName = `Payroll_Report_${selectedMonth}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "processed":
@@ -232,7 +286,7 @@ export default function Payroll() {
             onChange={(e) => setSelectedMonth(e.target.value)}
             className="w-40"
           />
-          <Button variant="outline">
+          <Button variant="outline" onClick={generateExcelReport}>
             <Calendar className="h-4 w-4 mr-2" />
             Generate Report
           </Button>

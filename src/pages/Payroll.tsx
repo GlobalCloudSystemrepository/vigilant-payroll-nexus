@@ -20,16 +20,28 @@ export default function Payroll() {
   const currentMonth = "2025-07";
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
+  // Fetch employees data
+  const { data: employees = [], isLoading: employeesLoading } = useQuery({
+    queryKey: ["employees"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("status", "active");
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Fetch cash advances for the selected month
-  const { data: cashAdvances = [], isLoading } = useQuery({
+  const { data: cashAdvances = [], isLoading: advancesLoading } = useQuery({
     queryKey: ["cash-advances", selectedMonth],
     queryFn: async () => {
       const year = selectedMonth.split('-')[0];
       const month = selectedMonth.split('-')[1];
       const startDate = `${year}-${month}-01`;
       const endDate = `${year}-${month}-31`;
-      
-      console.log("Filtering cash advances between:", startDate, "and", endDate);
       
       const { data, error } = await supabase
         .from("cash_advances")
@@ -48,40 +60,86 @@ export default function Payroll() {
         .lte("date_requested", endDate)
         .order("date_requested", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching cash advances:", error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log("Raw cash advances data:", data);
+      // Add employee details
+      const combinedData = data?.map(advance => {
+        const employee = employees.find(emp => emp.id === advance.employee_id);
+        return {
+          ...advance,
+          employees: employee
+        };
+      });
 
-      // Fetch employee details separately
-      const employeeIds = [...new Set(data?.map(advance => advance.employee_id).filter(Boolean))];
-      let employees: any[] = [];
-      
-      if (employeeIds.length > 0) {
-        const { data: employeeData, error: employeeError } = await supabase
-          .from("employees")
-          .select("id, name, employee_id")
-          .in("id", employeeIds);
-        
-        if (!employeeError && employeeData) {
-          employees = employeeData;
-        }
-        console.log("Employee data:", employees);
-      }
-
-      // Combine the data
-      const combinedData = data?.map(advance => ({
-        ...advance,
-        employees: employees.find(emp => emp.id === advance.employee_id)
-      }));
-
-      console.log("Combined data:", combinedData);
       return combinedData || [];
+    },
+    enabled: employees.length > 0,
+  });
 
+  // Fetch attendance for overtime calculation
+  const { data: attendanceData = [] } = useQuery({
+    queryKey: ["attendance-overtime", selectedMonth],
+    queryFn: async () => {
+      const year = selectedMonth.split('-')[0];
+      const month = selectedMonth.split('-')[1];
+      const startDate = `${year}-${month}-01`;
+      const endDate = `${year}-${month}-31`;
+      
+      const { data, error } = await supabase
+        .from("attendance")
+        .select("employee_id, hours_worked, is_overtime")
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .eq("is_overtime", true);
+
+      if (error) throw error;
+      return data || [];
     },
   });
+
+  // Fetch vendor payments for the selected month
+  const { data: vendorPayments = [] } = useQuery({
+    queryKey: ["vendor-payments", selectedMonth],
+    queryFn: async () => {
+      const year = selectedMonth.split('-')[0];
+      const month = selectedMonth.split('-')[1];
+      const startDate = `${year}-${month}-01`;
+      const endDate = `${year}-${month}-31`;
+      
+      const { data, error } = await supabase
+        .from("vendor_payments")
+        .select(`
+          *,
+          vendors:vendor_id (company_name, vendor_id),
+          customers:customer_id (company_name)
+        `)
+        .gte("payment_date", startDate)
+        .lte("payment_date", endDate);
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Calculate overtime hours per employee
+  const overtimeByEmployee = attendanceData.reduce((acc, record) => {
+    if (!acc[record.employee_id]) {
+      acc[record.employee_id] = 0;
+    }
+    acc[record.employee_id] += parseFloat(record.hours_worked?.toString() || "0");
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Calculate advances per employee for the month
+  const advancesByEmployee = cashAdvances.reduce((acc, advance) => {
+    if (advance.status === "approved" && advance.employee_id) {
+      if (!acc[advance.employee_id]) {
+        acc[advance.employee_id] = 0;
+      }
+      acc[advance.employee_id] += parseFloat(advance.amount?.toString() || "0");
+    }
+    return acc;
+  }, {} as Record<string, number>);
 
   // Transform cash advances data for display
   const advanceRequests = (cashAdvances || []).map((advance) => ({
@@ -97,73 +155,56 @@ export default function Payroll() {
     status: advance.status
   }));
 
-  // Calculate summary statistics
-  const totalAdvances = advanceRequests.reduce((sum, advance) => sum + advance.amount, 0);
-  const approvedAdvances = advanceRequests
+  // Calculate employee payroll from real data
+  const employeePayroll = employees.map((employee) => {
+    const baseSalary = parseFloat(employee.salary?.toString() || "0");
+    const overtimeHours = overtimeByEmployee[employee.id] || 0;
+    const overtimeRate = 150; // ₹150 per hour - you can make this configurable
+    const overtimePay = overtimeHours * overtimeRate;
+    const advance = advancesByEmployee[employee.id] || 0;
+    const deductions = 0; // Use net_salary as it already includes deductions
+    const grossSalary = baseSalary + overtimePay;
+    const netSalary = grossSalary - advance;
+
+    return {
+      id: employee.employee_id,
+      name: employee.name,
+      baseSalary: baseSalary,
+      overtime: overtimePay,
+      advance: advance,
+      deductions: deductions,
+      netSalary: netSalary,
+      status: "Pending" // You can add logic to determine status from payroll table
+    };
+  });
+
+  // Calculate totals from real data
+  const totalEmployees = employees.length;
+  const totalSalary = employeePayroll.reduce((sum, emp) => sum + emp.baseSalary + emp.overtime, 0);
+  const totalAdvances = advanceRequests
     .filter(advance => advance.status === "approved")
     .reduce((sum, advance) => sum + advance.amount, 0);
+  const totalVendorPayments = vendorPayments.reduce((sum, payment) => sum + parseFloat(payment.amount?.toString() || "0"), 0);
+  const netPayable = totalSalary - totalAdvances;
 
   const payrollSummary = {
-    totalEmployees: 127,
-    totalSalary: 2845000,
-    totalAdvances: totalAdvances,
-    netPayable: 2845000 - totalAdvances,
-    vendorPayments: 450000
+    totalEmployees,
+    totalSalary,
+    totalAdvances,
+    netPayable,
+    vendorPayments: totalVendorPayments
   };
 
-  const employeePayroll = [
-    {
-      id: "EMP001",
-      name: "John Smith",
-      baseSalary: 25000,
-      overtime: 2000,
-      advance: 2000,
-      deductions: 500,
-      netSalary: 24500,
-      status: "Processed"
-    },
-    {
-      id: "EMP002",
-      name: "Sarah Wilson", 
-      baseSalary: 30000,
-      overtime: 1500,
-      advance: 0,
-      deductions: 600,
-      netSalary: 30900,
-      status: "Pending"
-    },
-    {
-      id: "EMP003",
-      name: "Mike Johnson",
-      baseSalary: 22000,
-      overtime: 800,
-      advance: 3000,
-      deductions: 400,
-      netSalary: 19400,
-      status: "Pending"
-    }
-  ];
-
-  const vendorPayments = [
-    {
-      id: "VEN001",
-      name: "QuickGuard Services",
-      guards: 5,
-      dailyRate: 800,
-      daysWorked: 30,
-      totalAmount: 120000,
-      status: "Paid"
-    },
-    {
-      id: "VEN002",
-      name: "Elite Security Solutions",
-      guards: 3,
-      dailyRate: 750,
-      daysWorked: 25,
-      totalAmount: 56250,
-      status: "Pending"
-    }
-  ];
+  // Transform vendor payments for display
+  const vendorPaymentsList = vendorPayments.map((payment) => ({
+    id: payment.vendors?.vendor_id || "N/A",
+    name: payment.vendors?.company_name || "Unknown Vendor",
+    customer: payment.customers?.company_name || "Unknown Customer",
+    amount: parseFloat(payment.amount?.toString() || "0"),
+    date: payment.payment_date,
+    notes: payment.notes || "",
+    status: "Paid" // All records in vendor_payments are considered paid
+  }));
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -275,51 +316,61 @@ export default function Payroll() {
               <CardDescription>Salary breakdown for {selectedMonth}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {employeePayroll.map((employee) => (
-                  <div 
-                    key={employee.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                        <User className="h-5 w-5 text-primary" />
+              {employeesLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Loading employee payroll...</p>
+                </div>
+              ) : employeePayroll.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No employees found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {employeePayroll.map((employee) => (
+                    <div 
+                      key={employee.id}
+                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                          <User className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{employee.name}</h3>
+                          <p className="text-sm text-muted-foreground">{employee.id}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">{employee.name}</h3>
-                        <p className="text-sm text-muted-foreground">{employee.id}</p>
+                      
+                      <div className="grid grid-cols-5 gap-4 text-sm">
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Base</p>
+                          <p className="font-medium">₹{employee.baseSalary.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Overtime</p>
+                          <p className="font-medium text-business-success">₹{employee.overtime.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Advance</p>
+                          <p className="font-medium text-business-warning">₹{employee.advance.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Deductions</p>
+                          <p className="font-medium text-destructive">₹{employee.deductions.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Net Salary</p>
+                          <p className="font-bold text-foreground">₹{employee.netSalary.toLocaleString()}</p>
+                        </div>
                       </div>
+                      
+                      <Badge className={getStatusColor(employee.status)}>
+                        {employee.status}
+                      </Badge>
                     </div>
-                    
-                    <div className="grid grid-cols-5 gap-4 text-sm">
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Base</p>
-                        <p className="font-medium">₹{employee.baseSalary.toLocaleString()}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Overtime</p>
-                        <p className="font-medium text-business-success">₹{employee.overtime.toLocaleString()}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Advance</p>
-                        <p className="font-medium text-business-warning">₹{employee.advance.toLocaleString()}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Deductions</p>
-                        <p className="font-medium text-destructive">₹{employee.deductions.toLocaleString()}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Net Salary</p>
-                        <p className="font-bold text-foreground">₹{employee.netSalary.toLocaleString()}</p>
-                      </div>
-                    </div>
-                    
-                    <Badge className={getStatusColor(employee.status)}>
-                      {employee.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -332,47 +383,48 @@ export default function Payroll() {
               <CardDescription>Relief guard service payments</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {vendorPayments.map((vendor) => (
-                  <div 
-                    key={vendor.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-business-blue-light rounded-full flex items-center justify-center">
-                        <CreditCard className="h-5 w-5 text-business-blue" />
+              {vendorPaymentsList.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">No vendor payments found for {selectedMonth}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {vendorPaymentsList.map((payment, index) => (
+                    <div 
+                      key={`${payment.id}-${index}`}
+                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-business-blue-light rounded-full flex items-center justify-center">
+                          <CreditCard className="h-5 w-5 text-business-blue" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{payment.name}</h3>
+                          <p className="text-sm text-muted-foreground">{payment.id}</p>
+                          <p className="text-sm text-muted-foreground">Customer: {payment.customer}</p>
+                          {payment.notes && (
+                            <p className="text-xs text-muted-foreground">Notes: {payment.notes}</p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">{vendor.name}</h3>
-                        <p className="text-sm text-muted-foreground">{vendor.id}</p>
+                      
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-muted-foreground text-sm">Payment Date</p>
+                          <p className="font-medium">{payment.date}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-muted-foreground text-sm">Amount</p>
+                          <p className="font-bold text-foreground">₹{payment.amount.toLocaleString()}</p>
+                        </div>
+                        <Badge className={getStatusColor(payment.status)}>
+                          {payment.status}
+                        </Badge>
                       </div>
                     </div>
-                    
-                    <div className="grid grid-cols-4 gap-4 text-sm">
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Guards</p>
-                        <p className="font-medium">{vendor.guards}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Daily Rate</p>
-                        <p className="font-medium">₹{vendor.dailyRate}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Days</p>
-                        <p className="font-medium">{vendor.daysWorked}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Total Amount</p>
-                        <p className="font-bold text-foreground">₹{vendor.totalAmount.toLocaleString()}</p>
-                      </div>
-                    </div>
-                    
-                    <Badge className={getStatusColor(vendor.status)}>
-                      {vendor.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -385,7 +437,7 @@ export default function Payroll() {
               <CardDescription>Employee cash advance tracking</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoading ? (
+              {advancesLoading ? (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground">Loading advances...</p>
                 </div>

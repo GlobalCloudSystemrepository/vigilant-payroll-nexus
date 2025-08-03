@@ -5,11 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, MapPin, Clock, UserX, Check, ChevronsUpDown } from "lucide-react";
+import { CalendarIcon, MapPin, Clock, UserX } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -76,7 +75,6 @@ export default function AttendanceMarkDialog({
   const [filteredEmployees, setFilteredEmployees] = useState<ScheduledEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>("");
   const [selectedClient, setSelectedClient] = useState<string>("all");
-  const [employeeSearchOpen, setEmployeeSearchOpen] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendanceData, setAttendanceData] = useState<Record<string, {
@@ -550,50 +548,18 @@ export default function AttendanceMarkDialog({
           {!isBulk && !editRecord && (
             <div className="flex flex-col space-y-2">
               <label className="text-sm font-medium">Select Employee</label>
-              <Popover open={employeeSearchOpen} onOpenChange={setEmployeeSearchOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={employeeSearchOpen}
-                    className="w-full justify-between"
-                  >
-                    {selectedEmployee
-                      ? scheduledEmployees.find((employee) => employee.employee_id === selectedEmployee)?.employee_name + 
-                        " - " + scheduledEmployees.find((employee) => employee.employee_id === selectedEmployee)?.customer_name
-                      : "Choose an employee..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0">
-                  <Command>
-                    <CommandInput placeholder="Search employees..." />
-                    <CommandList>
-                      <CommandEmpty>No employee found.</CommandEmpty>
-                      <CommandGroup>
-                        {scheduledEmployees.map((employee) => (
-                          <CommandItem
-                            key={employee.employee_id}
-                            value={`${employee.employee_name} ${employee.employee_id} ${employee.customer_name}`}
-                            onSelect={() => {
-                              setSelectedEmployee(employee.employee_id);
-                              setEmployeeSearchOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedEmployee === employee.employee_id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {employee.employee_name} ({employee.employee_id}) - {employee.customer_name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose an employee..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {scheduledEmployees.map((employee) => (
+                    <SelectItem key={employee.employee_id} value={employee.employee_id}>
+                      {employee.employee_name} - {employee.customer_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

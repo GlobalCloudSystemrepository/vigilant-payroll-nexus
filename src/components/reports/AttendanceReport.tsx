@@ -21,6 +21,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOf
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import * as XLSX from 'xlsx';
 
 interface AttendanceReportData {
   date: string;
@@ -263,6 +264,60 @@ export default function AttendanceReport() {
     return "bg-destructive text-white";
   };
 
+  const exportToExcel = () => {
+    if (reportData.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No data available to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Prepare detailed report data
+    const detailedData = reportData.map(report => ({
+      Date: format(new Date(report.date), viewType === 'day' ? 'MMM dd, yyyy' : 'MMM dd, yyyy'),
+      Customer: report.customer_name,
+      Scheduled: report.scheduled_count,
+      Present: report.present_count,
+      Absent: report.absent_count,
+      'Relief Workers': report.relief_count,
+      'Attendance Rate (%)': report.attendance_rate
+    }));
+
+    // Prepare summary data
+    const summaryData = customerSummaries.map(summary => ({
+      Customer: summary.customer_name,
+      'Total Scheduled': summary.total_scheduled,
+      'Total Present': summary.total_present,
+      'Total Absent': summary.total_absent,
+      'Relief Workers': summary.total_relief,
+      'Overall Rate (%)': summary.overall_rate
+    }));
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    
+    // Add detailed report sheet
+    const detailedWs = XLSX.utils.json_to_sheet(detailedData);
+    XLSX.utils.book_append_sheet(wb, detailedWs, 'Detailed Report');
+    
+    // Add summary sheet
+    const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Customer Summary');
+
+    // Generate filename
+    const filename = `Attendance_Report_${format(startDate, 'yyyy-MM-dd')}_to_${format(endDate, 'yyyy-MM-dd')}.xlsx`;
+    
+    // Save file
+    XLSX.writeFile(wb, filename);
+    
+    toast({
+      title: "Export Successful",
+      description: "Report has been downloaded successfully",
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -272,7 +327,7 @@ export default function AttendanceReport() {
           <p className="text-muted-foreground">Scheduled vs Present analysis by customer</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline">
+          <Button variant="outline" onClick={exportToExcel}>
             <Download className="h-4 w-4 mr-2" />
             Export Report
           </Button>

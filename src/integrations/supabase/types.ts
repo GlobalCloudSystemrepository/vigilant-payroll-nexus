@@ -25,6 +25,7 @@ export type Database = {
           id: string
           is_overtime: boolean | null
           notes: string | null
+          relieving_cost: number | null
           replacement_employee_id: string | null
           replacement_notes: string | null
           replacement_type: string | null
@@ -43,6 +44,7 @@ export type Database = {
           id?: string
           is_overtime?: boolean | null
           notes?: string | null
+          relieving_cost?: number | null
           replacement_employee_id?: string | null
           replacement_notes?: string | null
           replacement_type?: string | null
@@ -61,6 +63,7 @@ export type Database = {
           id?: string
           is_overtime?: boolean | null
           notes?: string | null
+          relieving_cost?: number | null
           replacement_employee_id?: string | null
           replacement_notes?: string | null
           replacement_type?: string | null
@@ -196,46 +199,85 @@ export type Database = {
       }
       employees: {
         Row: {
+          address: string | null
+          adhaar_number: string | null
+          allowance: number | null
+          basic_salary: number | null
           created_at: string
           department: string | null
           email: string | null
           employee_id: string
+          esic_amount: number | null
+          esic_applicable: boolean | null
+          gross_salary: number | null
           hire_date: string | null
+          hra: number | null
           id: string
           name: string
+          net_salary: number | null
+          pan_number: string | null
+          pf_amount: number | null
+          pf_applicable: boolean | null
           phone: string | null
           position: string | null
           salary: number | null
           status: string
           updated_at: string
+          voter_id: string | null
         }
         Insert: {
+          address?: string | null
+          adhaar_number?: string | null
+          allowance?: number | null
+          basic_salary?: number | null
           created_at?: string
           department?: string | null
           email?: string | null
           employee_id: string
+          esic_amount?: number | null
+          esic_applicable?: boolean | null
+          gross_salary?: number | null
           hire_date?: string | null
+          hra?: number | null
           id?: string
           name: string
+          net_salary?: number | null
+          pan_number?: string | null
+          pf_amount?: number | null
+          pf_applicable?: boolean | null
           phone?: string | null
           position?: string | null
           salary?: number | null
           status?: string
           updated_at?: string
+          voter_id?: string | null
         }
         Update: {
+          address?: string | null
+          adhaar_number?: string | null
+          allowance?: number | null
+          basic_salary?: number | null
           created_at?: string
           department?: string | null
           email?: string | null
           employee_id?: string
+          esic_amount?: number | null
+          esic_applicable?: boolean | null
+          gross_salary?: number | null
           hire_date?: string | null
+          hra?: number | null
           id?: string
           name?: string
+          net_salary?: number | null
+          pan_number?: string | null
+          pf_amount?: number | null
+          pf_applicable?: boolean | null
           phone?: string | null
           position?: string | null
           salary?: number | null
           status?: string
           updated_at?: string
+          voter_id?: string | null
         }
         Relationships: []
       }

@@ -77,7 +77,7 @@ export default function Payroll() {
     enabled: employees.length > 0,
   });
 
-  // Fetch attendance for overtime calculation
+  // Fetch attendance for overtime calculation and relieving costs
   const { data: attendanceData = [] } = useQuery({
     queryKey: ["attendance-overtime", selectedMonth],
     queryFn: async () => {
@@ -88,10 +88,10 @@ export default function Payroll() {
       
       const { data, error } = await supabase
         .from("attendance")
-        .select("employee_id, hours_worked, is_overtime")
+        .select("employee_id, replacement_employee_id, hours_worked, is_overtime, relieving_cost")
         .gte("date", startDate)
         .lte("date", endDate)
-        .eq("is_overtime", true);
+        .or("is_overtime.eq.true,relieving_cost.gt.0");
 
       if (error) throw error;
       return data || [];
@@ -122,12 +122,24 @@ export default function Payroll() {
     },
   });
 
-  // Calculate overtime hours per employee
+  // Calculate overtime hours and relieving costs per employee
   const overtimeByEmployee = attendanceData.reduce((acc, record) => {
-    if (!acc[record.employee_id]) {
-      acc[record.employee_id] = 0;
+    if (record.is_overtime && record.employee_id) {
+      if (!acc[record.employee_id]) {
+        acc[record.employee_id] = 0;
+      }
+      acc[record.employee_id] += parseFloat(record.hours_worked?.toString() || "0");
     }
-    acc[record.employee_id] += parseFloat(record.hours_worked?.toString() || "0");
+    return acc;
+  }, {} as Record<string, number>);
+
+  const relievingCostByEmployee = attendanceData.reduce((acc, record) => {
+    if (record.replacement_employee_id && record.relieving_cost) {
+      if (!acc[record.replacement_employee_id]) {
+        acc[record.replacement_employee_id] = 0;
+      }
+      acc[record.replacement_employee_id] += parseFloat(record.relieving_cost?.toString() || "0");
+    }
     return acc;
   }, {} as Record<string, number>);
 
@@ -162,9 +174,10 @@ export default function Payroll() {
     const overtimeHours = overtimeByEmployee[employee.id] || 0;
     const overtimeRate = 150; // ₹150 per hour - you can make this configurable
     const overtimePay = overtimeHours * overtimeRate;
+    const relievingCost = relievingCostByEmployee[employee.id] || 0;
     const advance = advancesByEmployee[employee.id] || 0;
     const deductions = 0; // Use net_salary as it already includes deductions
-    const grossSalary = baseSalary + overtimePay;
+    const grossSalary = baseSalary + overtimePay + relievingCost;
     const netSalary = grossSalary - advance;
 
     return {
@@ -172,6 +185,7 @@ export default function Payroll() {
       name: employee.name,
       baseSalary: baseSalary,
       overtime: overtimePay,
+      relieving: relievingCost,
       advance: advance,
       deductions: deductions,
       netSalary: netSalary,
@@ -181,7 +195,7 @@ export default function Payroll() {
 
   // Calculate totals from real data
   const totalEmployees = employees.length;
-  const totalSalary = employeePayroll.reduce((sum, emp) => sum + emp.baseSalary + emp.overtime, 0);
+  const totalSalary = employeePayroll.reduce((sum, emp) => sum + emp.baseSalary + emp.overtime + emp.relieving, 0);
   const totalAdvances = advanceRequests
     .filter(advance => advance.status === "approved")
     .reduce((sum, advance) => sum + advance.amount, 0);
@@ -214,6 +228,7 @@ export default function Payroll() {
       'Employee Name': emp.name,
       'Base Salary': emp.baseSalary,
       'Overtime Pay': emp.overtime,
+      'Relieving Cost': emp.relieving,
       'Advances': emp.advance,
       'Deductions': emp.deductions,
       'Net Salary': emp.netSalary,
@@ -395,7 +410,7 @@ export default function Payroll() {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-5 gap-4 text-sm">
+                      <div className="grid grid-cols-6 gap-4 text-sm">
                         <div className="text-center">
                           <p className="text-muted-foreground">Base</p>
                           <p className="font-medium">₹{employee.baseSalary.toLocaleString()}</p>
@@ -403,6 +418,10 @@ export default function Payroll() {
                         <div className="text-center">
                           <p className="text-muted-foreground">Overtime</p>
                           <p className="font-medium text-business-success">₹{employee.overtime.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Relieving</p>
+                          <p className="font-medium text-business-blue">₹{employee.relieving.toLocaleString()}</p>
                         </div>
                         <div className="text-center">
                           <p className="text-muted-foreground">Advance</p>

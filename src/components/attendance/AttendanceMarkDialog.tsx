@@ -88,6 +88,7 @@ export default function AttendanceMarkDialog({
     replacementNotes: string;
     isOvertime: boolean;
     vendorCost: string;
+    relievingCost: string;
     isPresent: boolean;
     isAbsent: boolean;
   }>>({});
@@ -128,6 +129,7 @@ export default function AttendanceMarkDialog({
         replacementNotes: editRecord.replacement_notes || '',
         isOvertime: editRecord.is_overtime || false,
         vendorCost: '',
+        relievingCost: '',
         isPresent: editRecord.status === 'present',
         isAbsent: editRecord.status === 'absent'
       };
@@ -267,6 +269,7 @@ export default function AttendanceMarkDialog({
             replacementNotes: existingAttendance?.replacement_notes || '',
             isOvertime: existingAttendance?.is_overtime || false,
             vendorCost: '',
+            relievingCost: '',
             isPresent: existingAttendance?.status === 'present' || false,
             isAbsent: existingAttendance?.status === 'absent' || false
           };
@@ -383,7 +386,9 @@ export default function AttendanceMarkDialog({
             attendance.replacementEmployeeId || null : null,
           replacement_notes: attendance.status === 'absent' ? attendance.replacementNotes || null : null,
           is_overtime: attendance.status === 'absent' && attendance.replacementType === 'employee' ? 
-            attendance.isOvertime : false
+            attendance.isOvertime : false,
+          relieving_cost: attendance.status === 'absent' && attendance.replacementType === 'employee' && attendance.relievingCost ? 
+            parseFloat(attendance.relievingCost) : 0
         };
 
         if (editRecord) {
@@ -836,21 +841,35 @@ export default function AttendanceMarkDialog({
                            </div>
                          )}
 
-                         {attendanceData[employee.employee_id]?.replacementType === 'employee' && (
-                           <div className="flex items-center space-x-2 mt-6">
-                             <Checkbox
-                               id={`overtime-${employee.employee_id}`}
-                               checked={attendanceData[employee.employee_id]?.isOvertime || false}
-                               onCheckedChange={(checked) => updateAttendance(employee.employee_id, 'isOvertime', checked as boolean)}
-                             />
-                             <label 
-                               htmlFor={`overtime-${employee.employee_id}`}
-                               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                             >
-                               This is overtime for the replacement employee
-                             </label>
-                           </div>
-                         )}
+                          {attendanceData[employee.employee_id]?.replacementType === 'employee' && (
+                            <div className="space-y-4">
+                              <div>
+                                <label className="text-sm font-medium">Relieving Cost (₹)</label>
+                                <input
+                                  type="number"
+                                  placeholder="Enter relieving cost"
+                                  className="w-full px-3 py-2 border border-input rounded-md"
+                                  value={attendanceData[employee.employee_id]?.relievingCost || ""}
+                                  onChange={(e) => updateAttendance(employee.employee_id, 'relievingCost', e.target.value)}
+                                  min="0"
+                                  step="0.01"
+                                />
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`overtime-${employee.employee_id}`}
+                                  checked={attendanceData[employee.employee_id]?.isOvertime || false}
+                                  onCheckedChange={(checked) => updateAttendance(employee.employee_id, 'isOvertime', checked as boolean)}
+                                />
+                                <label 
+                                  htmlFor={`overtime-${employee.employee_id}`}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  This is overtime for the replacement employee
+                                </label>
+                              </div>
+                            </div>
+                          )}
                        </div>
                     </div>
                   )}

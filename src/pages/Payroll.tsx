@@ -17,8 +17,8 @@ import LogCashAdvanceForm from "@/components/payroll/LogCashAdvanceForm";
 import * as XLSX from 'xlsx';
 
 export default function Payroll() {
-  // Set current month to July 2025 (actual current month)
-  const currentMonth = "2025-07";
+  // Set current month to actual current month
+  const currentMonth = format(new Date(), "yyyy-MM");
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
   // Fetch employees data

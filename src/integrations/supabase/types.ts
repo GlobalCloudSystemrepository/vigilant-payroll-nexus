@@ -166,6 +166,7 @@ export type Database = {
           phone: string | null
           status: string
           updated_at: string
+          working_days_per_month: number | null
         }
         Insert: {
           address?: string | null
@@ -180,6 +181,7 @@ export type Database = {
           phone?: string | null
           status?: string
           updated_at?: string
+          working_days_per_month?: number | null
         }
         Update: {
           address?: string | null
@@ -194,6 +196,7 @@ export type Database = {
           phone?: string | null
           status?: string
           updated_at?: string
+          working_days_per_month?: number | null
         }
         Relationships: []
       }

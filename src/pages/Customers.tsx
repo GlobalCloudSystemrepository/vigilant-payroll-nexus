@@ -32,6 +32,7 @@ export default function Customers() {
     address: "",
     guardsRequired: "",
     monthlyBill: "",
+    workingDaysPerMonth: "",
     status: ""
   });
   const [addFormData, setAddFormData] = useState({
@@ -42,6 +43,7 @@ export default function Customers() {
     address: "",
     guardsRequired: "",
     monthlyBill: "",
+    workingDaysPerMonth: "30",
     status: "active"
   });
   const { toast } = useToast();
@@ -172,6 +174,7 @@ export default function Customers() {
             address: addFormData.address,
             guards_required: parseInt(addFormData.guardsRequired) || 0,
             monthly_bill: parseFloat(addFormData.monthlyBill) || 0,
+            working_days_per_month: parseInt(addFormData.workingDaysPerMonth) || 30,
             status: addFormData.status
           }
         ])
@@ -193,6 +196,7 @@ export default function Customers() {
         address: "",
         guardsRequired: "",
         monthlyBill: "",
+        workingDaysPerMonth: "30",
         status: "active"
       });
       
@@ -220,6 +224,7 @@ export default function Customers() {
         address: customer.address || "",
         guardsRequired: (customer.guards_required || 0).toString(),
         monthlyBill: (customer.monthly_bill || 0).toString(),
+        workingDaysPerMonth: (customer.working_days_per_month || 30).toString(),
         status: customer.status || "active"
       });
       setEditDialogOpen(true);
@@ -248,6 +253,7 @@ export default function Customers() {
           address: editFormData.address,
           guards_required: parseInt(editFormData.guardsRequired) || 0,
           monthly_bill: parseFloat(editFormData.monthlyBill) || 0,
+          working_days_per_month: parseInt(editFormData.workingDaysPerMonth) || 30,
           status: editFormData.status
         })
         .eq('id', selectedCustomer.id);
@@ -441,7 +447,7 @@ export default function Customers() {
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <p className="font-medium text-foreground">₹{(customer.monthly_bill || 0).toLocaleString()}/month</p>
-                        <p className="text-sm text-muted-foreground">{customer.guards_required || 0} guards required</p>
+                        <p className="text-sm text-muted-foreground">{customer.guards_required || 0} guards • {customer.working_days_per_month || 30} days/month</p>
                         <p className="text-xs text-muted-foreground">ID: {customer.customer_id}</p>
                       </div>
                       <Badge className={getStatusColor(customer.status)}>
@@ -505,6 +511,10 @@ export default function Customers() {
                     <div className="flex justify-between items-center mt-1">
                       <span className="text-sm text-muted-foreground">Guards Required</span>
                       <span className="text-sm">{customer.guards_required || 0}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-sm text-muted-foreground">Working Days</span>
+                      <span className="text-sm">{customer.working_days_per_month || 30} days/month</span>
                     </div>
                   </div>
                    <div className="flex gap-2 pt-2">
@@ -597,6 +607,17 @@ export default function Customers() {
                 value={editFormData.monthlyBill}
                 onChange={(e) => setEditFormData({...editFormData, monthlyBill: e.target.value})}
                 className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="working-days" className="text-right">Working Days/Month</Label>
+              <Input
+                id="working-days"
+                type="number"
+                value={editFormData.workingDaysPerMonth}
+                onChange={(e) => setEditFormData({...editFormData, workingDaysPerMonth: e.target.value})}
+                className="col-span-3"
+                placeholder="30"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -702,6 +723,17 @@ export default function Customers() {
                 onChange={(e) => setAddFormData({...addFormData, monthlyBill: e.target.value})}
                 className="col-span-3"
                 placeholder="150000"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="add-working-days" className="text-right">Working Days/Month</Label>
+              <Input
+                id="add-working-days"
+                type="number"
+                value={addFormData.workingDaysPerMonth}
+                onChange={(e) => setAddFormData({...addFormData, workingDaysPerMonth: e.target.value})}
+                className="col-span-3"
+                placeholder="30"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

@@ -771,13 +771,23 @@ export default function Schedules() {
                         </div>
                         
                         <div className="flex gap-2 mt-4">
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => {
+                              // Pre-fill form with existing schedule data
+                              form.setValue("employee_id", schedule.employee_id);
+                              form.setValue("customer_id", schedule.customer_id);
+                              form.setValue("shift_date", new Date(schedule.shift_date));
+                              form.setValue("start_time", schedule.start_time);
+                              form.setValue("end_time", schedule.end_time);
+                              form.setValue("location", schedule.location || "");
+                              form.setValue("notes", schedule.notes || "");
+                              setIsCreateDialogOpen(true);
+                            }}
+                          >
                             <Edit className="h-4 w-4 mr-1" />
                             Edit
-                          </Button>
-                          <Button size="sm" variant="outline">
-                            <Copy className="h-4 w-4 mr-1" />
-                            Duplicate
                           </Button>
                         </div>
                       </div>

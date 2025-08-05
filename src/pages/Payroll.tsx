@@ -77,9 +77,9 @@ export default function Payroll() {
     enabled: employees.length > 0,
   });
 
-  // Fetch attendance for overtime calculation and relieving costs
+  // Fetch attendance for calculations
   const { data: attendanceData = [] } = useQuery({
-    queryKey: ["attendance-overtime", selectedMonth],
+    queryKey: ["attendance-data", selectedMonth],
     queryFn: async () => {
       const year = selectedMonth.split('-')[0];
       const month = selectedMonth.split('-')[1];
@@ -88,10 +88,43 @@ export default function Payroll() {
       
       const { data, error } = await supabase
         .from("attendance")
-        .select("employee_id, replacement_employee_id, hours_worked, is_overtime, relieving_cost")
+        .select("employee_id, replacement_employee_id, hours_worked, is_overtime, relieving_cost, status, date")
         .gte("date", startDate)
-        .lte("date", endDate)
-        .or("is_overtime.eq.true,relieving_cost.gt.0");
+        .lte("date", endDate);
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch customers for working days calculation
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, working_days_per_month")
+        .eq("status", "active");
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch schedules to get employee-customer mapping
+  const { data: schedules = [] } = useQuery({
+    queryKey: ["schedules", selectedMonth],
+    queryFn: async () => {
+      const year = selectedMonth.split('-')[0];
+      const month = selectedMonth.split('-')[1];
+      const startDate = `${year}-${month}-01`;
+      const endDate = `${year}-${month}-31`;
+      
+      const { data, error } = await supabase
+        .from("schedules")
+        .select("employee_id, customer_id")
+        .gte("shift_date", startDate)
+        .lte("shift_date", endDate);
 
       if (error) throw error;
       return data || [];
@@ -122,26 +155,50 @@ export default function Payroll() {
     },
   });
 
-  // Calculate overtime hours and relieving costs per employee
-  const overtimeByEmployee = attendanceData.reduce((acc, record) => {
-    if (record.is_overtime && record.employee_id) {
+  // Calculate attendance statistics per employee
+  const attendanceStats = attendanceData.reduce((acc, record) => {
+    if (record.employee_id) {
       if (!acc[record.employee_id]) {
-        acc[record.employee_id] = 0;
+        acc[record.employee_id] = { 
+          daysPresent: 0, 
+          overtimeHours: 0, 
+          relievingCost: 0 
+        };
       }
-      acc[record.employee_id] += parseFloat(record.hours_worked?.toString() || "0");
+      
+      // Count present days (present status)
+      if (record.status === 'present') {
+        acc[record.employee_id].daysPresent += 1;
+      }
+      
+      // Calculate overtime hours
+      if (record.is_overtime) {
+        acc[record.employee_id].overtimeHours += parseFloat(record.hours_worked?.toString() || "0");
+      }
     }
-    return acc;
-  }, {} as Record<string, number>);
-
-  const relievingCostByEmployee = attendanceData.reduce((acc, record) => {
+    
+    // Calculate relieving costs for replacement employees
     if (record.replacement_employee_id && record.relieving_cost) {
       if (!acc[record.replacement_employee_id]) {
-        acc[record.replacement_employee_id] = 0;
+        acc[record.replacement_employee_id] = { 
+          daysPresent: 0, 
+          overtimeHours: 0, 
+          relievingCost: 0 
+        };
       }
-      acc[record.replacement_employee_id] += parseFloat(record.relieving_cost?.toString() || "0");
+      acc[record.replacement_employee_id].relievingCost += parseFloat(record.relieving_cost?.toString() || "0");
+    }
+    
+    return acc;
+  }, {} as Record<string, { daysPresent: number; overtimeHours: number; relievingCost: number }>);
+
+  // Get employee-customer mapping from schedules
+  const employeeCustomerMap = schedules.reduce((acc, schedule) => {
+    if (schedule.employee_id && schedule.customer_id) {
+      acc[schedule.employee_id] = schedule.customer_id;
     }
     return acc;
-  }, {} as Record<string, number>);
+  }, {} as Record<string, string>);
 
   // Calculate advances per employee for the month
   const advancesByEmployee = cashAdvances.reduce((acc, advance) => {
@@ -170,37 +227,57 @@ export default function Payroll() {
 
   // Calculate employee payroll from real data
   const employeePayroll = employees.map((employee) => {
-    const baseSalary = parseFloat(employee.salary?.toString() || "0");
-    const overtimeHours = overtimeByEmployee[employee.id] || 0;
+    const stats = attendanceStats[employee.id] || { daysPresent: 0, overtimeHours: 0, relievingCost: 0 };
+    const customerId = employeeCustomerMap[employee.id];
+    const customer = customers.find(c => c.id === customerId);
+    const workingDaysPerMonth = customer?.working_days_per_month || 30;
+    
+    // Calculate Basic Salary based on attendance
+    const basicSalaryFromEmployee = parseFloat(employee.basic_salary?.toString() || "0");
+    const calculatedBasic = (stats.daysPresent * basicSalaryFromEmployee) / workingDaysPerMonth;
+    
+    // Get other allowances from employee table
+    const hra = parseFloat(employee.hra?.toString() || "0");
+    const allowance = parseFloat(employee.allowance?.toString() || "0");
+    const pfAmount = employee.pf_applicable ? parseFloat(employee.pf_amount?.toString() || "0") : 0;
+    const esicAmount = employee.esic_applicable ? parseFloat(employee.esic_amount?.toString() || "0") : 0;
+    
+    // Calculate overtime
     const overtimeRate = 150; // ₹150 per hour - you can make this configurable
-    const overtimePay = overtimeHours * overtimeRate;
-    const relievingCost = relievingCostByEmployee[employee.id] || 0;
+    const overtimePay = stats.overtimeHours * overtimeRate;
+    
+    // Get salary advance
     const advance = advancesByEmployee[employee.id] || 0;
-    const deductions = 0; // Use net_salary as it already includes deductions
-    const grossSalary = baseSalary + overtimePay + relievingCost;
-    const netSalary = grossSalary - advance;
+    
+    // Calculate gross and net salary
+    const grossSalary = calculatedBasic + hra + allowance + overtimePay;
+    const totalDeductions = pfAmount + esicAmount + advance;
+    const netSalary = grossSalary - totalDeductions;
 
     return {
       id: employee.employee_id,
       name: employee.name,
-      baseSalary: baseSalary,
+      basic: calculatedBasic,
+      hra: hra,
+      allowance: allowance,
+      grossSalary: grossSalary,
       overtime: overtimePay,
-      relieving: relievingCost,
+      pf: pfAmount,
+      esi: esicAmount,
       advance: advance,
-      deductions: deductions,
       netSalary: netSalary,
-      status: "Pending" // You can add logic to determine status from payroll table
+      status: "Pending"
     };
   });
 
   // Calculate totals from real data
   const totalEmployees = employees.length;
-  const totalSalary = employeePayroll.reduce((sum, emp) => sum + emp.baseSalary + emp.overtime + emp.relieving, 0);
+  const totalSalary = employeePayroll.reduce((sum, emp) => sum + emp.grossSalary, 0);
   const totalAdvances = advanceRequests
     .filter(advance => advance.status === "approved")
     .reduce((sum, advance) => sum + advance.amount, 0);
   const totalVendorPayments = vendorPayments.reduce((sum, payment) => sum + parseFloat(payment.amount?.toString() || "0"), 0);
-  const netPayable = totalSalary - totalAdvances;
+  const netPayable = employeePayroll.reduce((sum, emp) => sum + emp.netSalary, 0);
 
   const payrollSummary = {
     totalEmployees,
@@ -226,11 +303,14 @@ export default function Payroll() {
     const employeeSheet = employeePayroll.map(emp => ({
       'Employee ID': emp.id,
       'Employee Name': emp.name,
-      'Base Salary': emp.baseSalary,
-      'Overtime Pay': emp.overtime,
-      'Relieving Cost': emp.relieving,
-      'Advances': emp.advance,
-      'Deductions': emp.deductions,
+      'Basic': emp.basic,
+      'HRA': emp.hra,
+      'Allowance': emp.allowance,
+      'Gross Salary': emp.grossSalary,
+      'Overtime': emp.overtime,
+      'PF': emp.pf,
+      'ESI': emp.esi,
+      'Salary Advance': emp.advance,
       'Net Salary': emp.netSalary,
       'Status': emp.status
     }));
@@ -410,26 +490,38 @@ export default function Payroll() {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-6 gap-4 text-sm">
+                      <div className="grid grid-cols-9 gap-3 text-sm">
                         <div className="text-center">
-                          <p className="text-muted-foreground">Base</p>
-                          <p className="font-medium">₹{employee.baseSalary.toLocaleString()}</p>
+                          <p className="text-muted-foreground">Basic</p>
+                          <p className="font-medium">₹{employee.basic.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">HRA</p>
+                          <p className="font-medium">₹{employee.hra.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Allowance</p>
+                          <p className="font-medium">₹{employee.allowance.toLocaleString()}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Gross Salary</p>
+                          <p className="font-medium text-business-success">₹{employee.grossSalary.toLocaleString()}</p>
                         </div>
                         <div className="text-center">
                           <p className="text-muted-foreground">Overtime</p>
-                          <p className="font-medium text-business-success">₹{employee.overtime.toLocaleString()}</p>
+                          <p className="font-medium text-business-blue">₹{employee.overtime.toLocaleString()}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-muted-foreground">Relieving</p>
-                          <p className="font-medium text-business-blue">₹{employee.relieving.toLocaleString()}</p>
+                          <p className="text-muted-foreground">PF</p>
+                          <p className="font-medium text-business-warning">₹{employee.pf.toLocaleString()}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-muted-foreground">Advance</p>
-                          <p className="font-medium text-business-warning">₹{employee.advance.toLocaleString()}</p>
+                          <p className="text-muted-foreground">ESI</p>
+                          <p className="font-medium text-business-warning">₹{employee.esi.toLocaleString()}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-muted-foreground">Deductions</p>
-                          <p className="font-medium text-destructive">₹{employee.deductions.toLocaleString()}</p>
+                          <p className="text-muted-foreground">Salary Advance</p>
+                          <p className="font-medium text-destructive">₹{employee.advance.toLocaleString()}</p>
                         </div>
                         <div className="text-center">
                           <p className="text-muted-foreground">Net Salary</p>

@@ -236,6 +236,21 @@ export default function Payroll() {
     const basicSalaryFromEmployee = parseFloat(employee.basic_salary?.toString() || "0");
     const calculatedBasic = (stats.daysPresent * basicSalaryFromEmployee) / workingDaysPerMonth;
     
+    // Debug logging for Utpal specifically
+    if (employee.employee_id === "EMP0002") {
+      console.log("=== UTPAL DEBUG ===");
+      console.log("Employee:", employee.name);
+      console.log("Employee ID:", employee.id);
+      console.log("Basic Salary from Employee:", basicSalaryFromEmployee);
+      console.log("Days Present:", stats.daysPresent);
+      console.log("Customer ID:", customerId);
+      console.log("Customer:", customer);
+      console.log("Working Days Per Month:", workingDaysPerMonth);
+      console.log("Calculated Basic:", calculatedBasic);
+      console.log("Attendance Stats:", stats);
+      console.log("==================");
+    }
+    
     // Get other allowances from employee table
     const hra = parseFloat(employee.hra?.toString() || "0");
     const allowance = parseFloat(employee.allowance?.toString() || "0");

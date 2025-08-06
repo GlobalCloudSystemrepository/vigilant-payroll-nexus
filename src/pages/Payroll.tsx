@@ -1,15 +1,16 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   DollarSign, CreditCard, TrendingDown, TrendingUp,
-  Calendar, User, AlertCircle, CheckCircle
+  Calendar, User, AlertCircle, CheckCircle, ArrowUpDown, Filter
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import LogVendorPaymentForm from "@/components/payroll/LogVendorPaymentForm";
@@ -20,6 +21,49 @@ export default function Payroll() {
   // Set current month to actual current month
   const currentMonth = format(new Date(), "yyyy-MM");
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [sortColumn, setSortColumn] = useState<string>("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [filter, setFilter] = useState("");
+
+  const queryClient = useQueryClient();
+
+  // Set up real-time subscriptions for data changes
+  useEffect(() => {
+    const employeesChannel = supabase
+      .channel('employees-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'employees'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["employees"] });
+        }
+      )
+      .subscribe();
+
+    const customersChannel = supabase
+      .channel('customers-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'customers'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["customers"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(employeesChannel);
+      supabase.removeChannel(customersChannel);
+    };
+  }, [queryClient]);
 
   // Fetch employees data with refetch on mount to get latest data
   const { data: employees = [], isLoading: employeesLoading, refetch: refetchEmployees } = useQuery({
@@ -228,7 +272,7 @@ export default function Payroll() {
   }));
 
   // Calculate employee payroll from real data
-  const employeePayroll = employees.map((employee) => {
+  let employeePayroll = employees.map((employee) => {
     const stats = attendanceStats[employee.id] || { daysPresent: 0, overtimeHours: 0, relievingCost: 0 };
     const customerId = employeeCustomerMap[employee.id];
     const customer = customers.find(c => c.id === customerId);
@@ -286,6 +330,56 @@ export default function Payroll() {
       status: "Pending"
     };
   });
+
+  // Apply filtering
+  if (filter) {
+    employeePayroll = employeePayroll.filter(emp => 
+      emp.name.toLowerCase().includes(filter.toLowerCase()) ||
+      emp.id.toLowerCase().includes(filter.toLowerCase())
+    );
+  }
+
+  // Apply sorting
+  if (sortColumn) {
+    employeePayroll.sort((a, b) => {
+      const aValue = a[sortColumn as keyof typeof a];
+      const bValue = b[sortColumn as keyof typeof b];
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      
+      const aStr = String(aValue).toLowerCase();
+      const bStr = String(bValue).toLowerCase();
+      
+      if (sortDirection === 'asc') {
+        return aStr < bStr ? -1 : aStr > bStr ? 1 : 0;
+      } else {
+        return aStr > bStr ? -1 : aStr < bStr ? 1 : 0;
+      }
+    });
+  }
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
+  const SortableHeader = ({ column, children }: { column: string; children: React.ReactNode }) => (
+    <TableHead 
+      className="cursor-pointer hover:bg-muted/50 transition-colors"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center gap-2">
+        {children}
+        <ArrowUpDown className="h-4 w-4" />
+      </div>
+    </TableHead>
+  );
 
   // Calculate totals from real data
   const totalEmployees = employees.length;
@@ -480,6 +574,17 @@ export default function Payroll() {
             <CardHeader>
               <CardTitle>Monthly Employee Payroll</CardTitle>
               <CardDescription>Salary breakdown for {selectedMonth}</CardDescription>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  <Input
+                    placeholder="Search employees..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="w-64"
+                  />
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {employeesLoading ? (
@@ -491,66 +596,47 @@ export default function Payroll() {
                   <p className="text-muted-foreground">No employees found</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {employeePayroll.map((employee) => (
-                    <div 
-                      key={employee.id}
-                      className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                          <User className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">{employee.name}</h3>
-                          <p className="text-sm text-muted-foreground">{employee.id}</p>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-9 gap-3 text-sm">
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Basic</p>
-                          <p className="font-medium">₹{employee.basic.toLocaleString()}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">HRA</p>
-                          <p className="font-medium">₹{employee.hra.toLocaleString()}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Allowance</p>
-                          <p className="font-medium">₹{employee.allowance.toLocaleString()}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Gross Salary</p>
-                          <p className="font-medium text-business-success">₹{employee.grossSalary.toLocaleString()}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Overtime</p>
-                          <p className="font-medium text-business-blue">₹{employee.overtime.toLocaleString()}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">PF</p>
-                          <p className="font-medium text-business-warning">₹{employee.pf.toLocaleString()}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">ESI</p>
-                          <p className="font-medium text-business-warning">₹{employee.esi.toLocaleString()}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Salary Advance</p>
-                          <p className="font-medium text-destructive">₹{employee.advance.toLocaleString()}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-muted-foreground">Net Salary</p>
-                          <p className="font-bold text-foreground">₹{employee.netSalary.toLocaleString()}</p>
-                        </div>
-                      </div>
-                      
-                      <Badge className={getStatusColor(employee.status)}>
-                        {employee.status}
-                      </Badge>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <SortableHeader column="name">Employee</SortableHeader>
+                        <SortableHeader column="id">ID</SortableHeader>
+                        <SortableHeader column="basic">Basic</SortableHeader>
+                        <SortableHeader column="hra">HRA</SortableHeader>
+                        <SortableHeader column="allowance">Allowance</SortableHeader>
+                        <SortableHeader column="grossSalary">Gross Salary</SortableHeader>
+                        <SortableHeader column="overtime">Overtime</SortableHeader>
+                        <SortableHeader column="pf">PF</SortableHeader>
+                        <SortableHeader column="esi">ESI</SortableHeader>
+                        <SortableHeader column="advance">Salary Advance</SortableHeader>
+                        <SortableHeader column="netSalary">Net Salary</SortableHeader>
+                        <SortableHeader column="status">Status</SortableHeader>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {employeePayroll.map((employee) => (
+                        <TableRow key={employee.id} className="hover:bg-muted/50">
+                          <TableCell className="font-medium">{employee.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{employee.id}</TableCell>
+                          <TableCell className="text-right">₹{employee.basic.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">₹{employee.hra.toLocaleString()}</TableCell>
+                          <TableCell className="text-right">₹{employee.allowance.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-medium text-business-success">₹{employee.grossSalary.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-business-blue">₹{employee.overtime.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-business-warning">₹{employee.pf.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-business-warning">₹{employee.esi.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-destructive">₹{employee.advance.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-bold">₹{employee.netSalary.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <Badge className={getStatusColor(employee.status)}>
+                              {employee.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </CardContent>

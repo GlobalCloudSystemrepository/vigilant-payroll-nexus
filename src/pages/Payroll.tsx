@@ -21,9 +21,9 @@ export default function Payroll() {
   const currentMonth = format(new Date(), "yyyy-MM");
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
-  // Fetch employees data
-  const { data: employees = [], isLoading: employeesLoading } = useQuery({
-    queryKey: ["employees"],
+  // Fetch employees data with refetch on mount to get latest data
+  const { data: employees = [], isLoading: employeesLoading, refetch: refetchEmployees } = useQuery({
+    queryKey: ["employees", selectedMonth],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
@@ -33,6 +33,8 @@ export default function Payroll() {
       if (error) throw error;
       return data || [];
     },
+    refetchOnMount: true, // Always refetch when component mounts
+    staleTime: 0, // Consider data immediately stale
   });
 
   // Fetch cash advances for the selected month

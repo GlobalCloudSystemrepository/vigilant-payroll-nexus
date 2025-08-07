@@ -46,7 +46,9 @@ const EmployeeAttendanceTable = ({ employeeId, startDate, endDate }: EmployeeAtt
 
   const formatTime = (timeString: string | null) => {
     if (!timeString) return 'N/A';
-    return format(new Date(timeString), 'hh:mm a');
+    // Handle both ISO timestamp and date strings
+    const date = new Date(timeString);
+    return format(date, 'hh:mm a');
   };
 
   if (isLoading) {

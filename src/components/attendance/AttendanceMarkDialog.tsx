@@ -373,9 +373,9 @@ export default function AttendanceMarkDialog({
           date: format(selectedDate, 'yyyy-MM-dd'),
           status: attendance.status,
           check_in_time: attendance.checkIn ? 
-            new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${attendance.checkIn}:00`).toISOString() : null,
+            `${format(selectedDate, 'yyyy-MM-dd')}T${attendance.checkIn}:00.000Z` : null,
           check_out_time: attendance.checkOut ? 
-            new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${attendance.checkOut}:00`).toISOString() : null,
+            `${format(selectedDate, 'yyyy-MM-dd')}T${attendance.checkOut}:00.000Z` : null,
           notes: attendance.notes || null,
           hours_worked: attendance.checkIn && attendance.checkOut ? 
             calculateHoursWorked(attendance.checkIn, attendance.checkOut) : null,

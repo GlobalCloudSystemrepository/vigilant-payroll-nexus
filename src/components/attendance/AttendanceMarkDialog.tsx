@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, MapPin, Clock, UserX } from "lucide-react";
 import { format } from "date-fns";
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -95,14 +96,16 @@ export default function AttendanceMarkDialog({
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Helper function to safely format time
+  const IST_TIMEZONE = 'Asia/Kolkata';
+
+  // Helper function to safely format time in IST
   const formatTime = (timeString?: string): string => {
     if (!timeString) return '';
     
     try {
       const date = new Date(timeString);
       if (isNaN(date.getTime())) return '';
-      return format(date, 'HH:mm');
+      return formatInTimeZone(date, IST_TIMEZONE, 'HH:mm');
     } catch (error) {
       console.error('Error formatting time:', error);
       return '';
@@ -224,7 +227,7 @@ export default function AttendanceMarkDialog({
           employees!fk_schedules_employee(name),
           customers!fk_schedules_customer(company_name)
         `)
-        .eq('shift_date', format(selectedDate, 'yyyy-MM-dd'))
+        .eq('shift_date', formatInTimeZone(selectedDate, IST_TIMEZONE, 'yyyy-MM-dd'))
         .eq('status', 'scheduled');
 
       if (error) throw error;
@@ -250,7 +253,7 @@ export default function AttendanceMarkDialog({
           .from('attendance')
           .select('*')
           .in('employee_id', employeeIds)
-          .eq('date', format(selectedDate, 'yyyy-MM-dd'));
+          .eq('date', formatInTimeZone(selectedDate, IST_TIMEZONE, 'yyyy-MM-dd'));
 
         const attendanceMap: Record<string, any> = {};
         
@@ -370,12 +373,12 @@ export default function AttendanceMarkDialog({
         const attendanceRecord = {
           employee_id: employee.employee_id,
           schedule_id: employee.schedule_id,
-          date: format(selectedDate, 'yyyy-MM-dd'),
+          date: formatInTimeZone(selectedDate, IST_TIMEZONE, 'yyyy-MM-dd'),
           status: attendance.status,
           check_in_time: attendance.checkIn ? 
-            `${format(selectedDate, 'yyyy-MM-dd')}T${attendance.checkIn}:00.000Z` : null,
+            formatInTimeZone(toZonedTime(`${formatInTimeZone(selectedDate, IST_TIMEZONE, 'yyyy-MM-dd')}T${attendance.checkIn}:00`, IST_TIMEZONE), IST_TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null,
           check_out_time: attendance.checkOut ? 
-            `${format(selectedDate, 'yyyy-MM-dd')}T${attendance.checkOut}:00.000Z` : null,
+            formatInTimeZone(toZonedTime(`${formatInTimeZone(selectedDate, IST_TIMEZONE, 'yyyy-MM-dd')}T${attendance.checkOut}:00`, IST_TIMEZONE), IST_TIMEZONE, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx") : null,
           notes: attendance.notes || null,
           hours_worked: attendance.checkIn && attendance.checkOut ? 
             calculateHoursWorked(attendance.checkIn, attendance.checkOut) : null,
@@ -431,7 +434,7 @@ export default function AttendanceMarkDialog({
               vendor_id: attendance.replacementVendorId,
               customer_id: schedule.customer_id,
               amount: parseFloat(attendance.vendorCost),
-              payment_date: format(selectedDate, 'yyyy-MM-dd'),
+              payment_date: formatInTimeZone(selectedDate, IST_TIMEZONE, 'yyyy-MM-dd'),
               notes: `Replacement for ${employee.employee_name} - ${attendance.replacementNotes || 'No additional notes'}`
             };
 

@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 
 interface EmployeeAttendanceTableProps {
   employeeId: string;
@@ -44,11 +45,13 @@ const EmployeeAttendanceTable = ({ employeeId, startDate, endDate }: EmployeeAtt
     );
   };
 
+  const IST_TIMEZONE = 'Asia/Kolkata';
+
   const formatTime = (timeString: string | null) => {
     if (!timeString) return 'N/A';
-    // Handle both ISO timestamp and date strings
+    // Handle both ISO timestamp and date strings in IST
     const date = new Date(timeString);
-    return format(date, 'hh:mm a');
+    return formatInTimeZone(date, IST_TIMEZONE, 'hh:mm a');
   };
 
   if (isLoading) {
@@ -76,7 +79,7 @@ const EmployeeAttendanceTable = ({ employeeId, startDate, endDate }: EmployeeAtt
         <TableBody>
           {attendance.map((record) => (
             <TableRow key={record.id}>
-              <TableCell>{format(new Date(record.date), 'MMM dd, yyyy')}</TableCell>
+              <TableCell>{formatInTimeZone(new Date(record.date), IST_TIMEZONE, 'MMM dd, yyyy')}</TableCell>
               <TableCell>{getStatusBadge(record.status)}</TableCell>
               <TableCell>{formatTime(record.check_in_time)}</TableCell>
               <TableCell>{formatTime(record.check_out_time)}</TableCell>

@@ -6,6 +6,7 @@ import { AppLayout } from "./components/layouts/AppLayout";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Employees from "./pages/Employees";
+import Departments from "./pages/Departments";
 import Customers from "./pages/Customers";
 import Vendors from "./pages/Vendors";
 import Schedules from "./pages/Schedules";
@@ -26,6 +27,7 @@ function App() {
             <Route index element={<Index />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="employees" element={<Employees />} />
+            <Route path="departments" element={<Departments />} />
             <Route path="employee360" element={<Employee360 />} />
             <Route path="customers" element={<Customers />} />
             <Route path="vendors" element={<Vendors />} />

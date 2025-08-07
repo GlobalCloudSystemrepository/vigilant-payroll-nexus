@@ -200,6 +200,71 @@ export type Database = {
         }
         Relationships: []
       }
+      departments: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      designations: {
+        Row: {
+          created_at: string
+          department_id: string
+          description: string | null
+          id: string
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department_id: string
+          description?: string | null
+          id?: string
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "designations_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           address: string | null
@@ -208,6 +273,8 @@ export type Database = {
           basic_salary: number | null
           created_at: string
           department: string | null
+          department_id: string | null
+          designation_id: string | null
           email: string | null
           employee_id: string
           esic_amount: number | null
@@ -235,6 +302,8 @@ export type Database = {
           basic_salary?: number | null
           created_at?: string
           department?: string | null
+          department_id?: string | null
+          designation_id?: string | null
           email?: string | null
           employee_id: string
           esic_amount?: number | null
@@ -262,6 +331,8 @@ export type Database = {
           basic_salary?: number | null
           created_at?: string
           department?: string | null
+          department_id?: string | null
+          designation_id?: string | null
           email?: string | null
           employee_id?: string
           esic_amount?: number | null
@@ -282,7 +353,22 @@ export type Database = {
           updated_at?: string
           voter_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "employees_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_designation_id_fkey"
+            columns: ["designation_id"]
+            isOneToOne: false
+            referencedRelation: "designations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payroll: {
         Row: {

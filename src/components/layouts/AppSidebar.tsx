@@ -10,7 +10,8 @@ import {
   Clock, 
   DollarSign, 
   FileText,
-  User
+  User,
+  Settings
 } from 'lucide-react';
 import {
   Sidebar,
@@ -27,6 +28,7 @@ import {
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/employees', label: 'Employees', icon: Users },
+  { href: '/departments', label: 'Departments', icon: Settings },
   { href: '/employee360', label: 'Employee 360', icon: User },
   { href: '/customers', label: 'Customers', icon: Building2 },
   { href: '/vendors', label: 'Vendors', icon: Truck },

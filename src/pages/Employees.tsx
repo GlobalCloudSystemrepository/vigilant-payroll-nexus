@@ -19,6 +19,8 @@ import {
 
 export default function Employees() {
   const [employees, setEmployees] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [designations, setDesignations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -33,6 +35,8 @@ export default function Employees() {
     phone: "",
     position: "",
     department: "",
+    department_id: "",
+    designation_id: "",
     hire_date: "",
     salary: "",
     status: "active",
@@ -75,8 +79,42 @@ export default function Employees() {
     }
   };
 
+  // Fetch departments from Supabase
+  const fetchDepartments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('departments')
+        .select('*')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setDepartments(data || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
+
+  // Fetch designations from Supabase
+  const fetchDesignations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('designations')
+        .select('*')
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setDesignations(data || []);
+    } catch (error) {
+      console.error('Error fetching designations:', error);
+    }
+  };
+
   useEffect(() => {
     fetchEmployees();
+    fetchDepartments();
+    fetchDesignations();
   }, []);
 
   // Filter employees based on search term and status filter
@@ -223,6 +261,8 @@ export default function Employees() {
         phone: employee.phone || "",
         position: employee.position || "",
         department: employee.department || "",
+        department_id: employee.department_id || "",
+        designation_id: employee.designation_id || "",
         hire_date: employee.hire_date || "",
         salary: employee.salary?.toString() || "",
         status: employee.status,
@@ -265,6 +305,8 @@ export default function Employees() {
           phone: editFormData.phone,
           position: editFormData.position,
           department: editFormData.department,
+          department_id: editFormData.department_id || null,
+          designation_id: editFormData.designation_id || null,
           hire_date: editFormData.hire_date,
           salary: parseFloat(editFormData.salary) || null,
           status: editFormData.status,
@@ -367,6 +409,8 @@ export default function Employees() {
       phone: "",
       position: "",
       department: "",
+      department_id: "",
+      designation_id: "",
       hire_date: "",
       salary: "",
       status: "active",
@@ -398,6 +442,8 @@ export default function Employees() {
           phone: editFormData.phone,
           position: editFormData.position,
           department: editFormData.department,
+          department_id: editFormData.department_id || null,
+          designation_id: editFormData.designation_id || null,
           hire_date: editFormData.hire_date,
           salary: parseFloat(editFormData.salary) || null,
           status: editFormData.status,
@@ -731,22 +777,59 @@ export default function Employees() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="position">Position</Label>
-                  <Input
-                    id="position"
-                    value={editFormData.position}
-                    onChange={(e) => setEditFormData({...editFormData, position: e.target.value})}
-                    placeholder="Security Guard, Supervisor, etc."
-                  />
+                  <Label htmlFor="department">Department</Label>
+                  <Select 
+                    value={editFormData.department_id} 
+                    onValueChange={(value) => {
+                      setEditFormData({
+                        ...editFormData, 
+                        department_id: value,
+                        designation_id: "" // Reset designation when department changes
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Input
-                    id="department"
-                    value={editFormData.department}
-                    onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
-                    placeholder="Security Department"
-                  />
+                  <Label htmlFor="designation">Position/Designation</Label>
+                  <Select 
+                    value={editFormData.designation_id} 
+                    onValueChange={(value) => {
+                      const selectedDesignation = designations.find(d => d.id === value);
+                      setEditFormData({
+                        ...editFormData, 
+                        designation_id: value,
+                        position: selectedDesignation?.name || ""
+                      });
+                    }}
+                    disabled={!editFormData.department_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Position" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {designations
+                        .filter(designation => designation.department_id === editFormData.department_id)
+                        .map((designation) => (
+                        <SelectItem key={designation.id} value={designation.id}>
+                          {designation.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!editFormData.department_id && (
+                    <p className="text-sm text-muted-foreground">Please select a department first</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="hire_date">Hire Date</Label>
@@ -1044,22 +1127,59 @@ export default function Employees() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-position">Position</Label>
-                  <Input
-                    id="edit-position"
-                    value={editFormData.position}
-                    onChange={(e) => setEditFormData({...editFormData, position: e.target.value})}
-                    placeholder="Security Guard, Supervisor, etc."
-                  />
+                  <Label htmlFor="edit-department">Department</Label>
+                  <Select 
+                    value={editFormData.department_id} 
+                    onValueChange={(value) => {
+                      setEditFormData({
+                        ...editFormData, 
+                        department_id: value,
+                        designation_id: "" // Reset designation when department changes
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-department">Department</Label>
-                  <Input
-                    id="edit-department"
-                    value={editFormData.department}
-                    onChange={(e) => setEditFormData({...editFormData, department: e.target.value})}
-                    placeholder="Security Department"
-                  />
+                  <Label htmlFor="edit-designation">Position/Designation</Label>
+                  <Select 
+                    value={editFormData.designation_id} 
+                    onValueChange={(value) => {
+                      const selectedDesignation = designations.find(d => d.id === value);
+                      setEditFormData({
+                        ...editFormData, 
+                        designation_id: value,
+                        position: selectedDesignation?.name || ""
+                      });
+                    }}
+                    disabled={!editFormData.department_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Position" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {designations
+                        .filter(designation => designation.department_id === editFormData.department_id)
+                        .map((designation) => (
+                        <SelectItem key={designation.id} value={designation.id}>
+                          {designation.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!editFormData.department_id && (
+                    <p className="text-sm text-muted-foreground">Please select a department first</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-hire_date">Hire Date</Label>

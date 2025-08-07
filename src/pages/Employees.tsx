@@ -122,27 +122,56 @@ export default function Employees() {
   };
 
   const handleExport = () => {
-    // Create CSV content
+    // Create comprehensive CSV content with all fields including KYC
     const csvContent = [
-      ['ID', 'Name', 'Employee ID', 'Phone', 'Email', 'Position', 'Department', 'Status', 'Hire Date', 'Salary'],
+      [
+        'ID', 'Employee ID', 'Name', 'Email', 'Phone', 'Position', 'Department', 
+        'Status', 'Hire Date', 'Address', 'PAN Number', 'Aadhaar Number', 'Voter ID',
+        'Basic Salary', 'HRA', 'Allowance', 'PF Applicable', 'PF Amount', 
+        'ESIC Applicable', 'ESIC Amount', 'Gross Salary', 'Net Salary', 'Total Salary',
+        'Created At', 'Updated At'
+      ],
       ...employees.map(emp => [
-        emp.id, emp.name, emp.employee_id, emp.phone, emp.email, emp.position, 
-        emp.department, emp.status, emp.hire_date, emp.salary
+        emp.id || '',
+        emp.employee_id || '',
+        emp.name || '',
+        emp.email || '',
+        emp.phone || '',
+        emp.position || '',
+        emp.department || '',
+        emp.status || '',
+        emp.hire_date || '',
+        emp.address || '',
+        emp.pan_number || '',
+        emp.adhaar_number || '',
+        emp.voter_id || '',
+        emp.basic_salary || 0,
+        emp.hra || 0,
+        emp.allowance || 0,
+        emp.pf_applicable ? 'Yes' : 'No',
+        emp.pf_amount || 0,
+        emp.esic_applicable ? 'Yes' : 'No',
+        emp.esic_amount || 0,
+        emp.gross_salary || 0,
+        emp.net_salary || 0,
+        emp.salary || 0,
+        emp.created_at || '',
+        emp.updated_at || ''
       ])
-    ].map(row => row.join(',')).join('\n');
+    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
 
     // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `employees_complete_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
     
     toast({
       title: "Export Successful",
-      description: "Employee data has been exported to CSV file.",
+      description: "Complete employee data including KYC has been exported to CSV file.",
     });
   };
 

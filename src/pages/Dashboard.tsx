@@ -1,49 +1,194 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Users, Building2, Shield, UserCheck, DollarSign, 
-  TrendingUp, AlertTriangle, Calendar, PlusCircle 
+  TrendingUp, AlertTriangle, Calendar, PlusCircle, BarChart3
 } from "lucide-react";
+
+interface Department {
+  id: string;
+  name: string;
+  status: string;
+}
+
+interface Designation {
+  id: string;
+  name: string;
+  department_id: string;
+  status: string;
+}
+
+interface Employee {
+  id: string;
+  name: string;
+  department_id: string | null;
+  designation_id: string | null;
+  status: string;
+}
+
+interface ChartData {
+  name: string;
+  count: number;
+}
 
 export default function Dashboard() {
   const [currentTime] = useState(new Date().toLocaleString());
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [chartFilter, setChartFilter] = useState("department");
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Chart colors
+  const chartColors = [
+    "#3B82F6", "#10B981", "#F59E0B", "#EF4444", 
+    "#8B5CF6", "#06B6D4", "#F97316", "#84CC16"
+  ];
+
+  useEffect(() => {
+    fetchData();
+    setupRealtimeSubscriptions();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch departments, designations, and employees
+      const [deptResult, desigResult, empResult] = await Promise.all([
+        supabase.from('departments').select('*').eq('status', 'active'),
+        supabase.from('designations').select('*').eq('status', 'active'),
+        supabase.from('employees').select('*').eq('status', 'active')
+      ]);
+
+      if (deptResult.data) setDepartments(deptResult.data);
+      if (desigResult.data) setDesignations(desigResult.data);
+      if (empResult.data) setEmployees(empResult.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const setupRealtimeSubscriptions = () => {
+    // Subscribe to departments changes
+    const departmentChannel = supabase
+      .channel('departments-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'departments' },
+        () => fetchData()
+      )
+      .subscribe();
+
+    // Subscribe to designations changes
+    const designationChannel = supabase
+      .channel('designations-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'designations' },
+        () => fetchData()
+      )
+      .subscribe();
+
+    // Subscribe to employees changes
+    const employeeChannel = supabase
+      .channel('employees-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'employees' },
+        () => fetchData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(departmentChannel);
+      supabase.removeChannel(designationChannel);
+      supabase.removeChannel(employeeChannel);
+    };
+  };
+
+  // Calculate department-wise employee count
+  const getDepartmentChartData = (): ChartData[] => {
+    const departmentCounts: Record<string, ChartData> = {};
+    
+    departments.forEach(dept => {
+      departmentCounts[dept.id] = {
+        name: dept.name,
+        count: 0
+      };
+    });
+
+    employees.forEach(emp => {
+      if (emp.department_id && departmentCounts[emp.department_id]) {
+        departmentCounts[emp.department_id].count++;
+      }
+    });
+
+    return Object.values(departmentCounts);
+  };
+
+  // Calculate designation-wise employee count
+  const getDesignationChartData = (): ChartData[] => {
+    const designationCounts: Record<string, ChartData> = {};
+    
+    designations.forEach(desig => {
+      designationCounts[desig.id] = {
+        name: desig.name,
+        count: 0
+      };
+    });
+
+    employees.forEach(emp => {
+      if (emp.designation_id && designationCounts[emp.designation_id]) {
+        designationCounts[emp.designation_id].count++;
+      }
+    });
+
+    return Object.values(designationCounts);
+  };
+
+  const getTotalEmployees = () => employees.length;
+
+  const getActiveEmployees = () => employees.filter(emp => emp.status === 'active').length;
 
   const stats = [
     {
-      title: "Active Employees",
-      value: "127",
+      title: "Total Employees",
+      value: getTotalEmployees().toString(),
       change: "+5 this month",
       icon: Users,
       color: "text-business-blue",
       bgColor: "bg-business-blue-light"
     },
     {
-      title: "Customer Sites",
-      value: "34",
-      change: "+2 new sites",
+      title: "Active Employees",
+      value: getActiveEmployees().toString(),
+      change: "Currently Active",
+      icon: UserCheck,
+      color: "text-business-success",
+      bgColor: "bg-green-50"
+    },
+    {
+      title: "Departments",
+      value: departments.length.toString(),
+      change: "Total Departments",
       icon: Building2,
       color: "text-business-success",
       bgColor: "bg-green-50"
     },
     {
-      title: "Relief Vendors",
-      value: "12",
-      change: "All active",
+      title: "Designations",
+      value: designations.length.toString(),
+      change: "Total Designations",
       icon: Shield,
       color: "text-business-warning",
       bgColor: "bg-orange-50"
-    },
-    {
-      title: "Today's Attendance",
-      value: "98.5%",
-      change: "+2.1% vs yesterday",
-      icon: UserCheck,
-      color: "text-business-success",
-      bgColor: "bg-green-50"
     }
   ];
 
@@ -117,6 +262,140 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Staff Distribution Charts */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-foreground">Staff Distribution</h2>
+          <Select value={chartFilter} onValueChange={setChartFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Chart Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="department">By Department</SelectItem>
+              <SelectItem value="designation">By Designation</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Bar Chart */}
+          <Card className="animate-fade-in">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                {chartFilter === "department" ? "Employees by Department" : "Employees by Designation"}
+              </CardTitle>
+              <CardDescription>
+                Real-time staff distribution {chartFilter === "department" ? "across departments" : "by job roles"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="h-80 flex items-center justify-center">
+                  <div className="text-muted-foreground">Loading chart data...</div>
+                </div>
+              ) : (
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={chartFilter === "department" ? getDepartmentChartData() : getDesignationChartData()}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis 
+                        dataKey="name" 
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                        fontSize={12}
+                      />
+                      <YAxis />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--background))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                        {(chartFilter === "department" ? getDepartmentChartData() : getDesignationChartData()).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Summary Stats */}
+          <Card className="animate-fade-in">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-business-success" />
+                Staff Summary
+              </CardTitle>
+              <CardDescription>
+                Detailed breakdown of your workforce
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? (
+                <div className="space-y-3">
+                  <div className="h-4 bg-muted rounded animate-pulse"></div>
+                  <div className="h-4 bg-muted rounded animate-pulse"></div>
+                  <div className="h-4 bg-muted rounded animate-pulse"></div>
+                </div>
+              ) : (
+                <>
+                  {chartFilter === "department" ? (
+                    getDepartmentChartData().map((item, index) => (
+                      <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: chartColors[index % chartColors.length] }}
+                          />
+                          <span className="font-medium text-foreground">{item.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="font-bold">
+                          {item.count} {item.count === 1 ? 'employee' : 'employees'}
+                        </Badge>
+                      </div>
+                    ))
+                  ) : (
+                    getDesignationChartData().map((item, index) => (
+                      <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: chartColors[index % chartColors.length] }}
+                          />
+                          <span className="font-medium text-foreground">{item.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="font-bold">
+                          {item.count} {item.count === 1 ? 'employee' : 'employees'}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
+                  
+                  {((chartFilter === "department" && getDepartmentChartData().length === 0) || 
+                    (chartFilter === "designation" && getDesignationChartData().length === 0)) && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No {chartFilter === "department" ? "departments" : "designations"} data available</p>
+                      <p className="text-sm">Add {chartFilter === "department" ? "departments" : "designations"} and assign employees to see distribution</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -104,7 +104,7 @@ export default function Departments() {
         .from('designations')
         .select(`
           *,
-          departments!inner(name)
+          departments!department_id(name)
         `)
         .order('created_at', { ascending: false });
 

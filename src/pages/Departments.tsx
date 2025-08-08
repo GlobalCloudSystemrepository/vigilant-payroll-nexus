@@ -102,7 +102,7 @@ export default function Departments() {
         .from('designations')
         .select(`
           *,
-          departments!fk_designations_department(name)
+          departments(name)
         `)
         .order('created_at', { ascending: false });
 

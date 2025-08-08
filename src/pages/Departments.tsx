@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -102,7 +104,7 @@ export default function Departments() {
         .from('designations')
         .select(`
           *,
-          departments!fk_designations_department(name)
+          departments!inner(name)
         `)
         .order('created_at', { ascending: false });
 
@@ -111,9 +113,7 @@ export default function Departments() {
       // Transform the data to match our interface
       const transformedData = data?.map(item => ({
         ...item,
-        departments: Array.isArray(item.departments) && item.departments.length > 0 
-          ? item.departments[0] 
-          : { name: 'Unknown Department' }
+        departments: item.departments
       })) || [];
       
       setDesignations(transformedData);
@@ -318,6 +318,11 @@ export default function Departments() {
     }
   };
 
+  const getDepartmentName = (departmentId: string) => {
+    const department = departments.find(dept => dept.id === departmentId);
+    return department ? department.name : 'Unknown Department';
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -372,44 +377,56 @@ export default function Departments() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDepartments.map((department) => (
-              <Card key={department.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center">
-                      <Building2 className="h-5 w-5 mr-2 text-primary" />
-                      {department.name}
-                    </CardTitle>
-                    <Badge className={getStatusColor(department.status)}>
-                      {department.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground text-sm mb-4">
-                    {department.description || 'No description provided'}
-                  </p>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditDepartment(department)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(department, 'department')}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredDepartments.map((department) => (
+                  <TableRow key={department.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center">
+                        <Building2 className="h-4 w-4 mr-2 text-primary" />
+                        {department.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>{department.description || 'No description provided'}</TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(department.status)}>
+                        {department.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(department.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditDepartment(department)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(department, 'department')}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
         </TabsContent>
 
         {/* Designations Tab */}
@@ -437,47 +454,58 @@ export default function Departments() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDesignations.map((designation) => (
-              <Card key={designation.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center">
-                      <UserCheck className="h-5 w-5 mr-2 text-primary" />
-                      {designation.name}
-                    </CardTitle>
-                    <Badge className={getStatusColor(designation.status)}>
-                      {designation.status}
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    {designation.departments?.name}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground text-sm mb-4">
-                    {designation.description || 'No description provided'}
-                  </p>
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditDesignation(designation)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDelete(designation, 'designation')}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredDesignations.map((designation) => (
+                  <TableRow key={designation.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center">
+                        <UserCheck className="h-4 w-4 mr-2 text-primary" />
+                        {designation.name}
+                      </div>
+                    </TableCell>
+                    <TableCell>{designation.departments?.name || getDepartmentName(designation.department_id)}</TableCell>
+                    <TableCell>{designation.description || 'No description provided'}</TableCell>
+                    <TableCell>
+                      <Badge className={getStatusColor(designation.status)}>
+                        {designation.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{new Date(designation.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditDesignation(designation)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(designation, 'designation')}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
         </TabsContent>
       </Tabs>
 

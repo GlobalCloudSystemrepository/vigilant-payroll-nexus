@@ -72,8 +72,11 @@ export default function Departments() {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchDepartments();
-    fetchDesignations();
+    const loadData = async () => {
+      await fetchDepartments();
+      await fetchDesignations();
+    };
+    loadData();
   }, []);
 
   const fetchDepartments = async () => {
@@ -102,21 +105,12 @@ export default function Departments() {
     try {
       const { data, error } = await supabase
         .from('designations')
-        .select(`
-          *,
-          departments!department_id(name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       
-      // Transform the data to match our interface
-      const transformedData = data?.map(item => ({
-        ...item,
-        departments: item.departments
-      })) || [];
-      
-      setDesignations(transformedData);
+      setDesignations(data || []);
     } catch (error) {
       console.error('Error fetching designations:', error);
       toast({

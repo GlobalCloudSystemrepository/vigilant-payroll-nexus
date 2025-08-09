@@ -54,7 +54,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData();
-    setupRealtimeSubscriptions();
+    const cleanup = setupRealtimeSubscriptions();
+    return cleanup;
   }, []);
 
   const fetchData = async () => {

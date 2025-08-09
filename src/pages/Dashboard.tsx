@@ -30,6 +30,7 @@ interface Employee {
   department_id: string | null;
   designation_id: string | null;
   status: string;
+  created_at: string;
 }
 
 interface ChartData {
@@ -37,11 +38,29 @@ interface ChartData {
   count: number;
 }
 
+interface RecentActivity {
+  id: string;
+  type: string;
+  message: string;
+  time: string;
+  status: string;
+}
+
+interface UpcomingPayment {
+  id: string;
+  type: string;
+  amount: string;
+  date: string;
+  priority: string;
+}
+
 export default function Dashboard() {
   const [currentTime] = useState(new Date().toLocaleString());
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [upcomingPayments, setUpcomingPayments] = useState<UpcomingPayment[]>([]);
   const [chartFilter, setChartFilter] = useState("department");
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -72,11 +91,202 @@ export default function Dashboard() {
       if (deptResult.data) setDepartments(deptResult.data);
       if (desigResult.data) setDesignations(desigResult.data);
       if (empResult.data) setEmployees(empResult.data);
+      
+      // Fetch recent activity and upcoming payments
+      await Promise.all([
+        fetchRecentActivity(),
+        fetchUpcomingPayments()
+      ]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchRecentActivity = async () => {
+    try {
+      const activities: RecentActivity[] = [];
+      
+      // Fetch recent attendance records (simplified)
+      const { data: attendanceData } = await supabase
+        .from('attendance')
+        .select('id, created_at, status, employee_id')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (attendanceData) {
+        // Get employee names for attendance records
+        const employeeIds = attendanceData.map(record => record.employee_id);
+        const { data: employeeData } = await supabase
+          .from('employees')
+          .select('id, name')
+          .in('id', employeeIds);
+
+        const employeeMap = new Map(employeeData?.map(emp => [emp.id, emp.name]) || []);
+
+        attendanceData.slice(0, 5).forEach(record => {
+          const timeAgo = getTimeAgo(record.created_at);
+          const employeeName = employeeMap.get(record.employee_id) || 'Unknown Employee';
+          activities.push({
+            id: record.id,
+            type: 'attendance',
+            message: `${employeeName} marked ${record.status}`,
+            time: timeAgo,
+            status: record.status === 'present' ? 'success' : 'warning'
+          });
+        });
+      }
+
+      // Fetch recent vendor payments (simplified)
+      const { data: paymentsData } = await supabase
+        .from('vendor_payments')
+        .select('id, created_at, amount, vendor_id')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (paymentsData) {
+        // Get vendor names for payment records
+        const vendorIds = paymentsData.map(payment => payment.vendor_id);
+        const { data: vendorData } = await supabase
+          .from('vendors')
+          .select('id, company_name')
+          .in('id', vendorIds);
+
+        const vendorMap = new Map(vendorData?.map(vendor => [vendor.id, vendor.company_name]) || []);
+
+        paymentsData.slice(0, 3).forEach(payment => {
+          const timeAgo = getTimeAgo(payment.created_at);
+          const vendorName = vendorMap.get(payment.vendor_id) || 'Unknown Vendor';
+          activities.push({
+            id: payment.id,
+            type: 'payment',
+            message: `Payment processed to ${vendorName} - ₹${payment.amount}`,
+            time: timeAgo,
+            status: 'info'
+          });
+        });
+      }
+
+      // Fetch recently added employees
+      const { data: newEmployees } = await supabase
+        .from('employees')
+        .select('id, name, created_at')
+        .order('created_at', { ascending: false })
+        .limit(2);
+
+      if (newEmployees) {
+        newEmployees.forEach(employee => {
+          const timeAgo = getTimeAgo(employee.created_at);
+          activities.push({
+            id: employee.id,
+            type: 'new',
+            message: `New employee ${employee.name} added`,
+            time: timeAgo,
+            status: 'success'
+          });
+        });
+      }
+
+      // Sort all activities by created time and take top 5
+      const sortedActivities = activities
+        .sort((a, b) => {
+          // Convert time strings back to timestamps for proper sorting
+          const getTimestamp = (timeStr: string) => {
+            if (timeStr === 'Just now') return Date.now();
+            const match = timeStr.match(/(\d+)\s*(min|hour|day)/);
+            if (!match) return Date.now();
+            const num = parseInt(match[1]);
+            const unit = match[2];
+            const now = Date.now();
+            if (unit === 'min') return now - (num * 60 * 1000);
+            if (unit === 'hour') return now - (num * 60 * 60 * 1000);
+            if (unit === 'day') return now - (num * 24 * 60 * 60 * 1000);
+            return now;
+          };
+          return getTimestamp(b.time) - getTimestamp(a.time);
+        })
+        .slice(0, 5);
+      
+      setRecentActivity(sortedActivities);
+    } catch (error) {
+      console.error('Error fetching recent activity:', error);
+    }
+  };
+
+  const fetchUpcomingPayments = async () => {
+    try {
+      const payments: UpcomingPayment[] = [];
+      
+      // Fetch pending cash advances (simplified)
+      const { data: cashAdvances } = await supabase
+        .from('cash_advances')
+        .select('id, amount, date_requested, employee_id')
+        .eq('status', 'pending')
+        .order('date_requested', { ascending: true })
+        .limit(5);
+
+      if (cashAdvances) {
+        // Get employee names for cash advances
+        const employeeIds = cashAdvances.map(advance => advance.employee_id);
+        const { data: employeeData } = await supabase
+          .from('employees')
+          .select('id, name')
+          .in('id', employeeIds);
+
+        const employeeMap = new Map(employeeData?.map(emp => [emp.id, emp.name]) || []);
+
+        cashAdvances.slice(0, 3).forEach(advance => {
+          const daysUntil = getDaysUntilDate(advance.date_requested);
+          const employeeName = employeeMap.get(advance.employee_id) || 'Unknown Employee';
+          payments.push({
+            id: advance.id,
+            type: `Cash Advance - ${employeeName}`,
+            amount: `₹${advance.amount}`,
+            date: daysUntil,
+            priority: daysUntil.includes('Today') ? 'urgent' : 
+                     daysUntil.includes('Tomorrow') ? 'high' : 'medium'
+          });
+        });
+      }
+
+      // Add estimated payroll payment
+      if (employees.length > 0) {
+        payments.push({
+          id: 'payroll-1',
+          type: 'Employee Salary',
+          amount: `₹${employees.length * 25000}`, // Estimated based on employee count
+          date: 'Tomorrow',
+          priority: 'high'
+        });
+      }
+
+      setUpcomingPayments(payments.slice(0, 3));
+    } catch (error) {
+      console.error('Error fetching upcoming payments:', error);
+    }
+  };
+
+  const getTimeAgo = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes} min ago`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hour${Math.floor(diffInMinutes / 60) > 1 ? 's' : ''} ago`;
+    return `${Math.floor(diffInMinutes / 1440)} day${Math.floor(diffInMinutes / 1440) > 1 ? 's' : ''} ago`;
+  };
+
+  const getDaysUntilDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const diffInDays = Math.ceil((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays === 0) return 'Today';
+    if (diffInDays === 1) return 'Tomorrow';
+    if (diffInDays < 0) return 'Overdue';
+    return `${diffInDays} days`;
   };
 
   const setupRealtimeSubscriptions = () => {
@@ -107,10 +317,43 @@ export default function Dashboard() {
       )
       .subscribe();
 
+    // Subscribe to attendance changes for recent activity
+    const attendanceChannel = supabase
+      .channel('attendance-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'attendance' },
+        () => fetchRecentActivity()
+      )
+      .subscribe();
+
+    // Subscribe to vendor payments changes
+    const vendorPaymentsChannel = supabase
+      .channel('vendor-payments-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'vendor_payments' },
+        () => {
+          fetchRecentActivity();
+          fetchUpcomingPayments();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to cash advances changes
+    const cashAdvancesChannel = supabase
+      .channel('cash-advances-changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'cash_advances' },
+        () => fetchUpcomingPayments()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(departmentChannel);
       supabase.removeChannel(designationChannel);
       supabase.removeChannel(employeeChannel);
+      supabase.removeChannel(attendanceChannel);
+      supabase.removeChannel(vendorPaymentsChannel);
+      supabase.removeChannel(cashAdvancesChannel);
     };
   };
 
@@ -193,19 +436,6 @@ export default function Dashboard() {
     }
   ];
 
-  const recentActivity = [
-    { type: "attendance", message: "John Smith marked present at Site Alpha", time: "5 min ago", status: "success" },
-    { type: "payment", message: "Vendor payment processed - ₹15,000", time: "12 min ago", status: "info" },
-    { type: "alert", message: "Late arrival: Mike Johnson at Site Beta", time: "25 min ago", status: "warning" },
-    { type: "new", message: "New employee Sarah Wilson added", time: "1 hour ago", status: "success" },
-    { type: "schedule", message: "Tomorrow's schedule updated for Site Gamma", time: "2 hours ago", status: "info" }
-  ];
-
-  const upcomingPayments = [
-    { type: "Employee Salary", amount: "₹2,45,000", date: "Tomorrow", priority: "high" },
-    { type: "Vendor Payment", amount: "₹35,000", date: "Today", priority: "urgent" },
-    { type: "Monthly Advances", amount: "₹85,000", date: "3 days", priority: "medium" }
-  ];
 
   return (
     <div className="space-y-6">
@@ -377,18 +607,36 @@ export default function Dashboard() {
             <CardDescription>Latest updates across your security operations</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentActivity.map((activity, index) => (
-              <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                <div className={`w-2 h-2 rounded-full mt-2 ${
-                  activity.status === 'success' ? 'bg-business-success' :
-                  activity.status === 'warning' ? 'bg-business-warning' : 'bg-primary'
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground">{activity.message}</p>
-                  <p className="text-xs text-muted-foreground">{activity.time}</p>
-                </div>
+            {loading ? (
+              <div className="space-y-3">
+                <div className="h-4 bg-muted rounded animate-pulse"></div>
+                <div className="h-4 bg-muted rounded animate-pulse"></div>
+                <div className="h-4 bg-muted rounded animate-pulse"></div>
               </div>
-            ))}
+            ) : (
+              <>
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((activity, index) => (
+                    <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                      <div className={`w-2 h-2 rounded-full mt-2 ${
+                        activity.status === 'success' ? 'bg-business-success' :
+                        activity.status === 'warning' ? 'bg-business-warning' : 'bg-primary'
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-foreground">{activity.message}</p>
+                        <p className="text-xs text-muted-foreground">{activity.time}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No recent activity</p>
+                    <p className="text-sm">Activity will appear here as employees mark attendance and payments are processed</p>
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -402,23 +650,41 @@ export default function Dashboard() {
             <CardDescription>Scheduled payments requiring attention</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {upcomingPayments.map((payment, index) => (
-              <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                <div>
-                  <p className="font-medium text-foreground">{payment.type}</p>
-                  <p className="text-sm text-muted-foreground">Due in {payment.date}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-foreground">{payment.amount}</p>
-                  <Badge variant={
-                    payment.priority === 'urgent' ? 'destructive' :
-                    payment.priority === 'high' ? 'default' : 'secondary'
-                  }>
-                    {payment.priority}
-                  </Badge>
-                </div>
+            {loading ? (
+              <div className="space-y-3">
+                <div className="h-4 bg-muted rounded animate-pulse"></div>
+                <div className="h-4 bg-muted rounded animate-pulse"></div>
+                <div className="h-4 bg-muted rounded animate-pulse"></div>
               </div>
-            ))}
+            ) : (
+              <>
+                {upcomingPayments.length > 0 ? (
+                  upcomingPayments.map((payment, index) => (
+                    <div key={payment.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div>
+                        <p className="font-medium text-foreground">{payment.type}</p>
+                        <p className="text-sm text-muted-foreground">Due in {payment.date}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground">{payment.amount}</p>
+                        <Badge variant={
+                          payment.priority === 'urgent' ? 'destructive' :
+                          payment.priority === 'high' ? 'default' : 'secondary'
+                        }>
+                          {payment.priority}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <DollarSign className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No upcoming payments</p>
+                    <p className="text-sm">Scheduled payments will appear here</p>
+                  </div>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

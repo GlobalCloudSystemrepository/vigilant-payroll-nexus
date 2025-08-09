@@ -264,82 +264,20 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Staff Distribution Charts */}
+      {/* Staff Distribution */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-foreground">Staff Distribution</h2>
-          <Select value={chartFilter} onValueChange={setChartFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Chart Type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="department">By Department</SelectItem>
-              <SelectItem value="designation">By Designation</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <h2 className="text-xl font-semibold text-foreground">Staff Distribution</h2>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Bar Chart */}
+          {/* Department Staff Summary */}
           <Card className="animate-fade-in">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-primary" />
-                {chartFilter === "department" ? "Employees by Department" : "Employees by Designation"}
+                <Building2 className="h-5 w-5 text-primary" />
+                Employees by Department
               </CardTitle>
               <CardDescription>
-                Real-time staff distribution {chartFilter === "department" ? "across departments" : "by job roles"}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="h-80 flex items-center justify-center">
-                  <div className="text-muted-foreground">Loading chart data...</div>
-                </div>
-              ) : (
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={chartFilter === "department" ? getDepartmentChartData() : getDesignationChartData()}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                      <XAxis 
-                        dataKey="name" 
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                        fontSize={12}
-                      />
-                      <YAxis />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--background))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px'
-                        }}
-                      />
-                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                        {(chartFilter === "department" ? getDepartmentChartData() : getDesignationChartData()).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Summary Stats */}
-          <Card className="animate-fade-in">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-business-success" />
-                Staff Summary
-              </CardTitle>
-              <CardDescription>
-                Detailed breakdown of your workforce
+                Real-time staff distribution across departments
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -351,44 +289,73 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <>
-                  {chartFilter === "department" ? (
-                    getDepartmentChartData().map((item, index) => (
-                      <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: chartColors[index % chartColors.length] }}
-                          />
-                          <span className="font-medium text-foreground">{item.name}</span>
-                        </div>
-                        <Badge variant="secondary" className="font-bold">
-                          {item.count} {item.count === 1 ? 'employee' : 'employees'}
-                        </Badge>
+                  {getDepartmentChartData().map((item, index) => (
+                    <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: chartColors[index % chartColors.length] }}
+                        />
+                        <span className="font-medium text-foreground">{item.name}</span>
                       </div>
-                    ))
-                  ) : (
-                    getDesignationChartData().map((item, index) => (
-                      <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: chartColors[index % chartColors.length] }}
-                          />
-                          <span className="font-medium text-foreground">{item.name}</span>
-                        </div>
-                        <Badge variant="secondary" className="font-bold">
-                          {item.count} {item.count === 1 ? 'employee' : 'employees'}
-                        </Badge>
-                      </div>
-                    ))
-                  )}
+                      <Badge variant="secondary" className="font-bold">
+                        {item.count} {item.count === 1 ? 'employee' : 'employees'}
+                      </Badge>
+                    </div>
+                  ))}
                   
-                  {((chartFilter === "department" && getDepartmentChartData().length === 0) || 
-                    (chartFilter === "designation" && getDesignationChartData().length === 0)) && (
+                  {getDepartmentChartData().length === 0 && (
                     <div className="text-center py-8 text-muted-foreground">
-                      <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No {chartFilter === "department" ? "departments" : "designations"} data available</p>
-                      <p className="text-sm">Add {chartFilter === "department" ? "departments" : "designations"} and assign employees to see distribution</p>
+                      <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No departments data available</p>
+                      <p className="text-sm">Add departments and assign employees to see distribution</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Designation Staff Summary */}
+          <Card className="animate-fade-in">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-business-success" />
+                Employees by Designation
+              </CardTitle>
+              <CardDescription>
+                Real-time staff distribution by job roles
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {loading ? (
+                <div className="space-y-3">
+                  <div className="h-4 bg-muted rounded animate-pulse"></div>
+                  <div className="h-4 bg-muted rounded animate-pulse"></div>
+                  <div className="h-4 bg-muted rounded animate-pulse"></div>
+                </div>
+              ) : (
+                <>
+                  {getDesignationChartData().map((item, index) => (
+                    <div key={item.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: chartColors[index % chartColors.length] }}
+                        />
+                        <span className="font-medium text-foreground">{item.name}</span>
+                      </div>
+                      <Badge variant="secondary" className="font-bold">
+                        {item.count} {item.count === 1 ? 'employee' : 'employees'}
+                      </Badge>
+                    </div>
+                  ))}
+                  
+                  {getDesignationChartData().length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No designations data available</p>
+                      <p className="text-sm">Add designations and assign employees to see distribution</p>
                     </div>
                   )}
                 </>
